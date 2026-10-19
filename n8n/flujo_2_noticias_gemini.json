@@ -1,0 +1,200 @@
+{
+  "name": "SmurfDecisions - Flujo 2: Noticias y Clasificación con Gemini",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "node-schedule-6h",
+      "name": "Ejecución Cada 6 Horas",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [180, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=paro+bloqueo+vias+colombia&hl=es-419&gl=CO&ceid=CO:es-419"
+      },
+      "id": "rss-paros",
+      "name": "RSS 1: Paros y Bloqueos",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [420, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=el+nino+incendios+forestales+ideam+ungrd+colombia&hl=es-419&gl=CO&ceid=CO:es-419"
+      },
+      "id": "rss-clima",
+      "name": "RSS 2: El Niño e Incendios",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [420, 320]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=energia+racionamiento+tarifas+electricas+colombia&hl=es-419&gl=CO&ceid=CO:es-419"
+      },
+      "id": "rss-energia",
+      "name": "RSS 3: Energía y Racionamiento",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [420, 440]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=norma+empaques+residuos+reciclaje+minambiente+colombia&hl=es-419&gl=CO&ceid=CO:es-419"
+      },
+      "id": "rss-norma-empaques",
+      "name": "RSS 4: Normas Empaques y Residuos",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [420, 560]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=reforma+tributaria+laboral+jornada+colombia&hl=es-419&gl=CO&ceid=CO:es-419"
+      },
+      "id": "rss-norma-laboral",
+      "name": "RSS 5: Reforma Tributaria y Laboral",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [420, 680]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalizar y limitar a 15 noticias más recientes entre todas las fuentes\nconst allItems = $input.all();\nconst uniqueMap = new Map();\n\nfor (const item of allItems) {\n  const json = item.json;\n  const link = json.link || json.guid || json.url;\n  if (link && !uniqueMap.has(link)) {\n    uniqueMap.set(link, {\n      titulo: json.title,\n      resumen: json.contentSnippet || json.summary || json.title,\n      enlace: link,\n      fuente: json.creator || 'Google News',\n      fecha_publicacion: json.isoDate ? json.isoDate.substring(0, 10) : new Date().toISOString().substring(0, 10)\n    });\n  }\n}\n\nconst limited = Array.from(uniqueMap.values()).slice(0, 15);\nreturn limited.map(n => ({ json: n }));"
+      },
+      "id": "node-unificar-noticias",
+      "name": "Unificar y Filtrar Duplicados (Máx 15)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 440]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Eres analista del entorno de Smurfit Westrock Colombia (papel, cartón corrugado, empaques y plantaciones forestales; planta principal en Yumbo, Valle del Cauca).\nEvalúa la noticia y responde SOLO con JSON válido:\n{\"relevante\": true o false,\n \"factor\": \"Político|Económico|Social|Tecnológico|Ecológico|Legal\",\n \"area\": \"Compras y finanzas|Operaciones y logística|Forestal|Talento humano|Jurídico y ambiental|Planeación y sostenibilidad|Comercial\",\n \"tipo_evento\": \"paro_bloqueo|clima_incendio|energia_racionamiento|norma_ambiental_empaques|norma_laboral_tributaria|tasa_cambio|otro\",\n \"probabilidad\": 1 a 5,\n \"impacto\": 1 a 5,\n \"explicacion\": \"máximo 2 frases\"}\nrelevante es true solo si la noticia puede afectar costos, suministro, operación, cumplimiento o demanda de la empresa en los próximos 12 meses.\nprobabilidad: qué tan probable es que el hecho afecte a la empresa. impacto: qué tan grave sería.\nNo inventes datos que no estén en la noticia.\n\nNoticia a evaluar:\nTítulo: {{ $json.titulo }}\nResumen: {{ $json.resumen }}\nFuente: {{ $json.fuente }}\nFecha: {{ $json.fecha_publicacion }}",
+        "hasOutputParser": true
+      },
+      "id": "node-gemini-clasificador",
+      "name": "Clasificar con Gemini Flash",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [940, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Procesar la respuesta del modelo, calcular puntaje y filtrar no relevantes\nconst item = $input.item.json;\nlet iaRes = {};\n\ntry {\n  const rawText = item.text || item.response || item.output || '{}';\n  iaRes = typeof rawText === 'string' ? JSON.parse(rawText.replace(/```json|```/g, '').trim()) : rawText;\n} catch (e) {\n  iaRes = { relevante: false };\n}\n\nif (!iaRes.relevante) {\n  return []; // Descartar si no es relevante\n}\n\nconst p = Math.max(1, Math.min(5, parseInt(iaRes.probabilidad, 10) || 1));\nconst i = Math.max(1, Math.min(5, parseInt(iaRes.impacto, 10) || 1));\nconst puntaje = p * i;\n\nlet nivel = 'Bajo';\nif (puntaje >= 15) nivel = 'Alto';\nelse if (puntaje >= 8) nivel = 'Medio';\n\nconst prioritaria = puntaje >= 15;\n\nreturn [{\n  json: {\n    titulo: $('Unificar y Filtrar Duplicados (Máx 15)').item.json.titulo,\n    resumen: $('Unificar y Filtrar Duplicados (Máx 15)').item.json.resumen,\n    enlace: $('Unificar y Filtrar Duplicados (Máx 15)').item.json.enlace,\n    fuente: $('Unificar y Filtrar Duplicados (Máx 15)').item.json.fuente,\n    fecha_publicacion: $('Unificar y Filtrar Duplicados (Máx 15)').item.json.fecha_publicacion,\n    factor: iaRes.factor || 'Económico',\n    area: iaRes.area || 'Operaciones y logística',\n    tipo_evento: iaRes.tipo_evento || 'otro',\n    probabilidad: p,\n    impacto: i,\n    puntaje: puntaje,\n    nivel: nivel,\n    prioritaria: prioritaria,\n    estado: 'pendiente',\n    decision: 'pendiente',\n    origen: 'n8n',\n    explicacion: iaRes.explicacion || ''\n  }\n}];"
+      },
+      "id": "node-calcular-puntaje",
+      "name": "Calcular Puntaje (P x I) y Prioridad",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1180, 440]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "alertas",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "titulo": "={{ $json.titulo }}",
+            "resumen": "={{ $json.resumen }}",
+            "enlace": "={{ $json.enlace }}",
+            "fuente": "={{ $json.fuente }}",
+            "fecha_publicacion": "={{ $json.fecha_publicacion }}",
+            "factor": "={{ $json.factor }}",
+            "area": "={{ $json.area }}",
+            "tipo_evento": "={{ $json.tipo_evento }}",
+            "probabilidad": "={{ $json.probabilidad }}",
+            "impacto": "={{ $json.impacto }}",
+            "puntaje": "={{ $json.puntaje }}",
+            "nivel": "={{ $json.nivel }}",
+            "prioritaria": "={{ $json.prioritaria }}",
+            "estado": "={{ $json.estado }}",
+            "decision": "={{ $json.decision }}",
+            "origen": "={{ $json.origen }}",
+            "explicacion": "={{ $json.explicacion }}"
+          }
+        }
+      },
+      "id": "node-guardar-alertas-supabase",
+      "name": "Guardar Alertas en Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1420, 440]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "ejecuciones",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "flujo": "Flujo 2: Noticias",
+            "fuente": "Google News RSS (5 temas)",
+            "inicio": "={{ $now.toISO() }}",
+            "fin": "={{ $now.toISO() }}",
+            "estado": "ok",
+            "registros_nuevos": "={{ $('Guardar Alertas en Supabase').all().length }}",
+            "mensaje_error": null
+          }
+        }
+      },
+      "id": "node-log-ejecucion-noticias",
+      "name": "Registrar Log en ejecuciones",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1660, 440]
+    }
+  ],
+  "connections": {
+    "Ejecución Cada 6 Horas": {
+      "main": [
+        [
+          { "node": "RSS 1: Paros y Bloqueos", "type": "main", "index": 0 },
+          { "node": "RSS 2: El Niño e Incendios", "type": "main", "index": 0 },
+          { "node": "RSS 3: Energía y Racionamiento", "type": "main", "index": 0 },
+          { "node": "RSS 4: Normas Empaques y Residuos", "type": "main", "index": 0 },
+          { "node": "RSS 5: Reforma Tributaria y Laboral", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "RSS 1: Paros y Bloqueos": { "main": [[{ "node": "Unificar y Filtrar Duplicados (Máx 15)", "type": "main", "index": 0 }]] },
+    "RSS 2: El Niño e Incendios": { "main": [[{ "node": "Unificar y Filtrar Duplicados (Máx 15)", "type": "main", "index": 0 }]] },
+    "RSS 3: Energía y Racionamiento": { "main": [[{ "node": "Unificar y Filtrar Duplicados (Máx 15)", "type": "main", "index": 0 }]] },
+    "RSS 4: Normas Empaques y Residuos": { "main": [[{ "node": "Unificar y Filtrar Duplicados (Máx 15)", "type": "main", "index": 0 }]] },
+    "RSS 5: Reforma Tributaria y Laboral": { "main": [[{ "node": "Unificar y Filtrar Duplicados (Máx 15)", "type": "main", "index": 0 }]] },
+    "Unificar y Filtrar Duplicados (Máx 15)": { "main": [[{ "node": "Clasificar con Gemini Flash", "type": "main", "index": 0 }]] },
+    "Clasificar con Gemini Flash": { "main": [[{ "node": "Calcular Puntaje (P x I) y Prioridad", "type": "main", "index": 0 }]] },
+    "Calcular Puntaje (P x I) y Prioridad": { "main": [[{ "node": "Guardar Alertas en Supabase", "type": "main", "index": 0 }]] },
+    "Guardar Alertas en Supabase": { "main": [[{ "node": "Registrar Log en ejecuciones", "type": "main", "index": 0 }]] }
+  }
+}
