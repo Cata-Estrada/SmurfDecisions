@@ -7,15 +7,19 @@ import {
   Database,
   ExternalLink,
   Activity,
-  Server
+  Server,
+  Play
 } from 'lucide-react';
-import { getFuentes, getEjecuciones } from '../lib/dataService';
+import { getFuentes, getEjecuciones, getUltimoIdEjecucion } from '../lib/dataService';
+import { ejecutarFlujosN8n, esperarEjecucionN8n } from '../lib/n8nService';
 
 export default function CentroActualizaciones() {
   const [fuentes, setFuentes] = useState([]);
   const [ejecuciones, setEjecuciones] = useState([]);
   const [origenDatos, setOrigenDatos] = useState('local');
   const [cargando, setCargando] = useState(true);
+  const [ejecutando, setEjecutando] = useState(false);
+  const [resultadoEjecucion, setResultadoEjecucion] = useState(null);
 
   async function cargarDatos() {
     setCargando(true);
@@ -45,6 +49,53 @@ export default function CentroActualizaciones() {
   useEffect(() => {
     cargarDatos();
   }, []);
+
+  async function iniciarFlujos() {
+    setEjecutando(true);
+    setResultadoEjecucion(null);
+    try {
+      const idMinimo = await getUltimoIdEjecucion();
+      await ejecutarFlujosN8n();
+      setResultadoEjecucion({
+        tipo: 'pending',
+        texto: 'Webhook aceptado. Esperando los registros de los tres flujos en Supabase…',
+        ejecuciones: []
+      });
+
+      const resultado = await esperarEjecucionN8n({
+        idMinimo,
+        onActualizacion: (ejecuciones) => {
+          setResultadoEjecucion({
+            tipo: 'pending',
+            texto: 'Webhook aceptado. Esperando los registros de los tres flujos en Supabase…',
+            ejecuciones
+          });
+        }
+      });
+      const huboErrores = resultado.ejecuciones.some((ejecucion) => ejecucion?.estado !== 'ok');
+      setResultadoEjecucion({
+        tipo: resultado.timedOut ? 'warning' : huboErrores ? 'error' : 'success',
+        texto: resultado.timedOut
+          ? resultado.ejecucionesObservadas?.length
+            ? 'Se agotó el tiempo. Supabase recibió registros, pero sus valores de “flujo” no coinciden con los tres nombres esperados.'
+            : 'Se agotó el tiempo y no aparecieron registros nuevos en ejecuciones. Revisa que el webhook active los flujos y que cada uno inserte su fila al finalizar.'
+          : huboErrores
+          ? 'Los tres flujos terminaron, pero al menos uno registró un error.'
+          : 'Los tres flujos terminaron correctamente y sus resultados ya están en Supabase.',
+        ejecuciones: resultado.ejecuciones,
+        ejecucionesObservadas: resultado.ejecucionesObservadas || []
+      });
+      await cargarDatos();
+    } catch (error) {
+      setResultadoEjecucion({
+        tipo: 'error',
+        texto: error.message,
+        ejecuciones: []
+      });
+    } finally {
+      setEjecutando(false);
+    }
+  }
 
   const formatearFechaHora = (fechaIso) => {
     if (!fechaIso) return 'Pendiente';
@@ -83,14 +134,63 @@ export default function CentroActualizaciones() {
           </p>
         </div>
 
-        <button
-          onClick={cargarDatos}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 text-xs font-medium rounded hover:bg-slate-50 transition-colors shadow-sm self-start"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${cargando ? 'animate-spin' : ''}`} />
-          Refrescar estado
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={iniciarFlujos}
+            disabled={ejecutando}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 border border-blue-700 text-white text-xs font-semibold rounded hover:bg-blue-800 transition-colors shadow-sm disabled:opacity-60"
+          >
+            <Play className={`w-3.5 h-3.5 ${ejecutando ? 'animate-pulse' : ''}`} />
+            {ejecutando ? 'Esperando resultado…' : 'Ejecutar flujos n8n'}
+          </button>
+          <button
+            onClick={cargarDatos}
+            disabled={cargando || ejecutando}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 text-xs font-medium rounded hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-60"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${cargando ? 'animate-spin' : ''}`} />
+            Refrescar estado
+          </button>
+        </div>
       </div>
+
+      {resultadoEjecucion && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`rounded-md border px-4 py-3 text-xs ${
+            resultadoEjecucion.tipo === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : resultadoEjecucion.tipo === 'pending'
+              ? 'border-blue-200 bg-blue-50 text-blue-800'
+              : resultadoEjecucion.tipo === 'warning'
+              ? 'border-amber-200 bg-amber-50 text-amber-900'
+              : 'border-red-200 bg-red-50 text-red-800'
+          }`}
+        >
+          <p>{resultadoEjecucion.texto}</p>
+          {resultadoEjecucion.ejecuciones?.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {resultadoEjecucion.ejecuciones.map((ejecucion, indice) => (
+                <li key={ejecucion?.id || `pendiente-${indice}`}>
+                  {['indicadores', 'noticias', 'recomendaciones'][indice]}:{' '}
+                  {ejecucion
+                    ? `${ejecucion.estado}${ejecucion.mensaje_error ? ` — ${ejecucion.mensaje_error}` : ''}`
+                    : 'esperando registro'}
+                </li>
+              ))}
+            </ul>
+          )}
+          {resultadoEjecucion.ejecucionesObservadas?.length > 0 && (
+            <p className="mt-2">
+              Registros nuevos detectados:{' '}
+              {resultadoEjecucion.ejecucionesObservadas
+                .map((ejecucion) => `${ejecucion.flujo} (${ejecucion.estado})`)
+                .join(', ')}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Resumen de Estado de la Automatización */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
