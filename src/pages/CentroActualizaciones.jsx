@@ -14,6 +14,7 @@ import { getFuentes, getEjecuciones } from '../lib/dataService';
 export default function CentroActualizaciones() {
   const [fuentes, setFuentes] = useState([]);
   const [ejecuciones, setEjecuciones] = useState([]);
+  const [origenDatos, setOrigenDatos] = useState('local');
   const [cargando, setCargando] = useState(true);
 
   async function cargarDatos() {
@@ -22,8 +23,22 @@ export default function CentroActualizaciones() {
       getFuentes(),
       getEjecuciones()
     ]);
-    setFuentes(resFuentes || []);
-    setEjecuciones(resEjecuciones || []);
+
+    const listaFuentes = Array.isArray(resFuentes)
+      ? resFuentes
+      : (resFuentes?.data && Array.isArray(resFuentes.data))
+      ? resFuentes.data
+      : [];
+
+    const listaEjecuciones = Array.isArray(resEjecuciones)
+      ? resEjecuciones
+      : (resEjecuciones?.data && Array.isArray(resEjecuciones.data))
+      ? resEjecuciones.data
+      : [];
+
+    setFuentes(listaFuentes);
+    setEjecuciones(listaEjecuciones);
+    setOrigenDatos(resFuentes?.source || resEjecuciones?.source || 'local');
     setCargando(false);
   }
 
@@ -49,9 +64,20 @@ export default function CentroActualizaciones() {
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-            Centro de Actualizaciones y Auditoría de Automatización
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+              Centro de Actualizaciones y Auditoría de Automatización
+            </h2>
+            {origenDatos === 'supabase' ? (
+              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                Datos desde Supabase
+              </span>
+            ) : (
+              <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                Respaldo Local
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-500 mt-1">
             Monitoreo en tiempo real del estado de los flujos de n8n, fuentes externas e historial de ejecuciones.
           </p>
@@ -74,7 +100,9 @@ export default function CentroActualizaciones() {
           </div>
           <div>
             <span className="text-xs text-slate-500 font-medium">Fuentes Monitoreadas</span>
-            <div className="text-2xl font-bold text-slate-900 mt-0.5">{fuentes.length}</div>
+            <div className="text-2xl font-bold text-slate-900 mt-0.5">
+              {(Array.isArray(fuentes) ? fuentes : []).length}
+            </div>
             <span className="text-[11px] text-slate-400">3 macro + 5 feeds RSS</span>
           </div>
         </div>
@@ -86,7 +114,7 @@ export default function CentroActualizaciones() {
           <div>
             <span className="text-xs text-slate-500 font-medium">Ejecuciones Exitosas</span>
             <div className="text-2xl font-bold text-emerald-600 mt-0.5">
-              {ejecuciones.filter((e) => e.estado === 'ok').length}
+              {(Array.isArray(ejecuciones) ? ejecuciones : []).filter((e) => e.estado === 'ok').length}
             </div>
             <span className="text-[11px] text-slate-400">Sin fallos críticos reportados</span>
           </div>
@@ -127,7 +155,7 @@ export default function CentroActualizaciones() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {fuentes.map((f) => (
+              {(Array.isArray(fuentes) ? fuentes : []).map((f) => (
                 <tr key={f.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3 px-4 font-mono text-[11px] text-slate-500">
                     {f.id}
@@ -185,7 +213,7 @@ export default function CentroActualizaciones() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {ejecuciones.length === 0 ? (
+              {(!Array.isArray(ejecuciones) || ejecuciones.length === 0) ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400">
                     No hay registros de ejecución en la base de datos.
