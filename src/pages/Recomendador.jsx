@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { getAlertas, getReglas, actualizarDecisionAlerta } from '../lib/dataService';
 import { REGLAS_RECOMENDADOR, REGLA_POR_DEFECTO } from '../lib/catalogos';
+import { formatearFechaPublicacion } from '../lib/fechas';
 import NivelBadge from '../components/NivelBadge';
 import OrigenBadge from '../components/OrigenBadge';
 
@@ -209,7 +210,7 @@ export default function Recomendador() {
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                      <span>Fuente: <strong className="text-slate-600">{alerta.fuente}</strong> ({alerta.fecha_publicacion})</span>
+                      <span>Fuente: <strong className="text-slate-600">{alerta.fuente}</strong> ({formatearFechaPublicacion(alerta.fecha_publicacion)})</span>
                       {esTasaCambio && (
                         <Link
                           to="/simulador"
