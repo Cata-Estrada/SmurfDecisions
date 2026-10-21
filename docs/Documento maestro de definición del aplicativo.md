@@ -122,10 +122,10 @@ Los seis módulos comparten una escala única de prioridad: puntaje = probabilid
 | Aspecto | Descripción |
 | --- | --- |
 | Propósito | Convertir una alerta validada en una acción justificada |
-| Funcionalidades | Muestra la acción sugerida, el motivo, el área responsable, las suposiciones, la fuente y el estado (pendiente, aceptada, descartada) |
-| Entradas | Alerta validada (factor, tipo de evento, puntaje, área) y el catálogo de reglas |
-| Procesamiento | Busca la regla que coincide con el tipo de evento; la IA solo redacta la explicación a partir de esa regla |
-| Resultados | Una recomendación por alerta |
+| Funcionalidades | Muestra la recomendación complementaria generada por n8n cuando existe, la acción sugerida por el catálogo, el motivo, el área responsable, las suposiciones, la fuente y el estado (pendiente, aceptada, descartada) |
+| Entradas | Alerta validada (factor, tipo de evento, puntaje, área), el catálogo de reglas y el campo opcional `recomendacion_texto` |
+| Procesamiento | Busca la regla que coincide con el tipo de evento y muestra por separado el texto complementario guardado por n8n; la regla del catálogo sigue siendo la acción determinística |
+| Resultados | Recomendación complementaria de n8n (si existe) y acción determinística del catálogo por alerta |
 | Reglas | La decisión sale de las reglas del catálogo (ver Catálogos y parámetros); si el tipo de evento no tiene regla, queda «sin regla: revisión manual» |
 | Relación | Lee del módulo 2 y del simulador; sus resultados aparecen en el panel |
 

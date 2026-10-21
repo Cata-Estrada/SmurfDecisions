@@ -73,12 +73,25 @@ npm install
 2. Copia y ejecuta el contenido de `supabase/schema.sql`.
 3. Copia y ejecuta el contenido de `supabase/seed.sql`.
 
+Si ya tienes un proyecto de Supabase con tablas o datos propios, no ejecutes estos scripts de ejemplo sin revisar sus cambios: el `seed.sql` carga datos PESTEL de muestra. La aplicación consulta las tablas `alertas`, `indicadores`, `valores_indicador`, `reglas`, `fuentes` y `ejecuciones`; usa las columnas disponibles en ellas.
+
 ### 3. Variables de Entorno
-Crea un archivo `.env` en la raíz del proyecto (basado en `.env.example`):
+Edita el archivo local `.env` en la raíz del proyecto:
 ```env
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu-anon-public-key
+
+# Webhook de n8n Cloud (solo servidor local; no usar prefijo VITE_)
+N8N_WEBHOOK_URL=
+N8N_WEBHOOK_KEY=
 ```
+Usa únicamente la clave pública `anon`/publishable en la aplicación; nunca pongas la clave `service_role` en variables `VITE_`.
+
+La URL y la clave de n8n se leen solo desde el servidor local de Vite y no se envían al navegador. Si ya habías guardado esos valores como `VITE_N8N_WEBHOOK_URL` y `VITE_N8N_WEBHOOK_KEY`, renómbralos en `.env` a `N8N_WEBHOOK_URL` y `N8N_WEBHOOK_KEY`, sin cambiar los valores. Como las variables con prefijo `VITE_` pueden exponerse al cliente, genera una clave nueva en n8n antes de usar este botón y actualiza el valor local.
+
+El botón envía una solicitud `POST` con respuesta inmediata y únicamente el campo `requestedAt`; espera hasta cinco minutos a que `ejecuciones` registre nuevas filas con los valores de flujo `indicadores`, `noticias` y `recomendaciones`. La espera compara IDs nuevos (no fechas de los equipos) y muestra los nombres observados si no coinciden. En el nodo **Webhook** de n8n, configura método `POST`, respuesta **Immediately** y autenticación **Header Auth** con encabezado `X-API-Key`; usa la misma clave de `N8N_WEBHOOK_KEY`. Conecta la salida del Webhook directamente a los nodos iniciales de las tres ramas. Un nodo **Switch** que evalúe campos como `flujo` no seleccionará las tres ramas: la solicitud no contiene ese campo. Si mantienes un Switch, configúralo explícitamente para enviar el mismo elemento a todas las salidas requeridas. Cada rama debe insertar al finalizar su fila en `ejecuciones`, con `flujo` exactamente igual a `indicadores`, `noticias` o `recomendaciones`. Activa el webhook y configura `N8N_WEBHOOK_URL` con su **Production URL** (no la Test URL). El botón bloquea ejecuciones simultáneas mientras espera y, al terminar, refresca el historial desde Supabase.
+
+Reinicia Vite después de editar `.env`. Este relay existe únicamente en `npm run dev`, escucha solicitudes locales y no está incluido en el build de producción.
 
 ### 4. Ejecución en modo desarrollo
 ```bash

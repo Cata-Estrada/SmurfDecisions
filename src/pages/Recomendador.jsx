@@ -32,7 +32,7 @@ export default function Recomendador() {
       getReglas()
     ]);
     setAlertas(resAlertas.data || []);
-    if (resReglas) setReglas(resReglas);
+    if (resReglas?.data) setReglas(resReglas.data);
     setCargando(false);
   }
 
@@ -187,6 +187,15 @@ export default function Recomendador() {
 
                   {/* Caja de Motivo y Supuestos (6 cols) */}
                   <div className="md:col-span-6 space-y-3 flex flex-col justify-between">
+                    <div className="bg-violet-50 border border-violet-200 rounded-lg p-3">
+                      <span className="font-semibold text-violet-900">
+                        Recomendación automatizada (n8n):
+                      </span>
+                      <p className="text-violet-900 mt-1 leading-relaxed">
+                        {alerta.recomendacion_texto || 'El flujo de recomendaciones aún no ha generado texto para esta alerta.'}
+                      </p>
+                    </div>
+
                     <div>
                       <span className="font-semibold text-slate-700">Motivo / Justificación:</span>
                       <p className="text-slate-600 mt-1 leading-relaxed">

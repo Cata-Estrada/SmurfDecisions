@@ -60,7 +60,14 @@ export async function getConexionStatus() {
       supabase.from('ejecuciones').select('*', { count: 'exact', head: true })
     ]);
 
-    const errorRLS = resAlertas.error || resIndicadores.error || resReglas.error;
+    const errorRLS = [
+      resAlertas,
+      resIndicadores,
+      resValores,
+      resReglas,
+      resFuentes,
+      resEjecuciones
+    ].find((resultado) => resultado.error)?.error;
     const conteos = {
       alertas: resAlertas.count ?? 0,
       indicadores: resIndicadores.count ?? 0,
@@ -83,7 +90,7 @@ export async function getConexionStatus() {
         ? `Error de permisos o RLS en Supabase: ${errorRLS.message}`
         : tieneFilas
         ? `Conexión activa a Supabase (${conteos.alertas} alertas en la nube).`
-        : `Conectado a Supabase, pero las tablas tienen 0 filas. Ejecuta seed.sql y fix_rls.sql.`
+        : 'Supabase respondió correctamente, pero la clave pública no ve filas en alertas. Revisa el contenido de esa tabla y sus políticas de lectura; no se cargaron datos de muestra.'
     };
   } catch (err) {
     return {
@@ -257,6 +264,43 @@ export async function getEjecuciones() {
     }
   }
   return { data: EJECUCIONES_INICIALES, source: 'local' };
+}
+
+export async function getUltimoIdEjecucion() {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Configura Supabase antes de ejecutar y esperar los flujos de n8n.');
+  }
+
+  const { data, error } = await supabase
+    .from('ejecuciones')
+    .select('id')
+    .order('id', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`No se pudo consultar ejecuciones en Supabase: ${error.message}`);
+  }
+
+  return Number(data?.id || 0);
+}
+
+export async function getEjecucionesPosteriores({ idMinimo }) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase no está configurado; no se pueden esperar los resultados de n8n.');
+  }
+
+  const { data, error } = await supabase
+    .from('ejecuciones')
+    .select('id, flujo, fuente, inicio, fin, estado, registros_nuevos, mensaje_error')
+    .gt('id', idMinimo)
+    .order('id', { ascending: true });
+
+  if (error) {
+    throw new Error(`No se pudieron leer los resultados de ejecuciones: ${error.message}`);
+  }
+
+  return data || [];
 }
 
 /**

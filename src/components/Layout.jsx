@@ -11,8 +11,6 @@ import {
   Building2,
   AlertTriangle,
   CheckCircle,
-  Copy,
-  Check,
   X
 } from 'lucide-react';
 import { isSupabaseConfigured } from '../lib/supabase';
@@ -30,7 +28,6 @@ const NAV_ITEMS = [
 export default function Layout() {
   const [status, setStatus] = useState(null);
   const [mostrarModalSql, setMostrarModalSql] = useState(false);
-  const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
     async function verificar() {
@@ -40,31 +37,6 @@ export default function Layout() {
     verificar();
   }, []);
 
-  const sqlSolucion = `-- Ejecuta en el SQL Editor de tu proyecto Supabase:
--- 1. Deshabilitar RLS en las 6 tablas para permitir lectura y escritura pública del prototipo:
-ALTER TABLE IF EXISTS public.fuentes DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.indicadores DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.valores_indicador DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.reglas DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.alertas DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.ejecuciones DISABLE ROW LEVEL SECURITY;
-
-GRANT ALL ON TABLE public.fuentes TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.indicadores TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.valores_indicador TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.reglas TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.alertas TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.ejecuciones TO anon, authenticated, service_role;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
-
--- 2. Ejecuta a continuación el contenido de supabase/seed.sql para cargar los 27 hallazgos PESTEL.`;
-
-  const handleCopiarSql = () => {
-    navigator.clipboard.writeText(sqlSolucion);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2500);
-  };
-
   return (
     <div className="min-h-screen flex bg-slate-100 text-slate-800">
       {/* Barra lateral de navegación (Desktop-first) */}
@@ -72,9 +44,11 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, se
         {/* Encabezado institucional */}
         <div className="p-5 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-              S
-            </div>
+            <img
+              src="https://cl-paris-media-hub.ecomm.cencosud.com/files/landing/institucional/dia-de-madre/paris-cajita.png"
+              alt="Smurfit Westrock"
+              className="w-9 h-9 rounded object-cover shadow-sm"
+            />
             <div>
               <h1 className="text-sm font-bold text-white tracking-tight leading-none">
                 SmurfDecisions
@@ -132,10 +106,10 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, se
               <button
                 onClick={() => setMostrarModalSql(true)}
                 className="inline-flex items-center gap-1 text-[10px] text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800 hover:bg-amber-900 transition-colors"
-                title="Conectado pero sin datos o RLS bloqueado. Clic para ver solución."
+                title="Revisar conexión, datos y permisos de Supabase."
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                Supabase (0 filas / RLS)
+                Supabase (revisar)
               </button>
             ) : (
               <span className="inline-flex items-center gap-1 text-[10px] text-sky-400 bg-sky-950/80 px-2 py-0.5 rounded border border-sky-800">
@@ -160,14 +134,22 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, se
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
               <span>
-                <strong>Conexión establecida con Supabase</strong>, pero las tablas tienen 0 registros visibles o RLS está bloqueando la clave anónima. La aplicación está mostrando los <strong>27 hallazgos locales de respaldo</strong>.
+                {status?.conectado ? (
+                  <>
+                    <strong>Conexión establecida con Supabase</strong>, pero la clave pública no ve filas en <code>alertas</code>. La aplicación está mostrando los <strong>27 hallazgos locales de respaldo</strong>; no se han insertado datos de ejemplo.
+                  </>
+                ) : (
+                  <>
+                    <strong>No se pudo confirmar la conexión con Supabase.</strong> {status?.mensaje || 'Revisa la URL, la clave pública y los permisos de lectura.'} La aplicación está mostrando los <strong>27 hallazgos locales de respaldo</strong>.
+                  </>
+                )}
               </span>
             </div>
             <button
               onClick={() => setMostrarModalSql(true)}
               className="ml-4 shrink-0 px-2.5 py-1 bg-amber-600 text-white rounded font-semibold text-[11px] hover:bg-amber-700 transition-colors"
             >
-              Cómo activar datos en Supabase
+              Revisar conexión
             </button>
           </div>
         )}
@@ -211,14 +193,14 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, se
         </main>
       </div>
 
-      {/* Modal con instrucciones para activar Supabase si RLS o seed está pendiente */}
+      {/* Guía de diagnóstico sin modificar el esquema o los permisos del proyecto */}
       {mostrarModalSql && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full border border-slate-200 overflow-hidden">
             <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
                 <Database className="w-4 h-4 text-blue-600" />
-                Instrucciones para Habilitar Acceso Completo en Supabase
+                Diagnóstico de conexión a Supabase
               </div>
               <button
                 onClick={() => setMostrarModalSql(false)}
@@ -230,27 +212,28 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, se
 
             <div className="p-6 space-y-4 text-xs text-slate-700">
               <p>
-                Tu proyecto de Supabase (<code>https://yzgbigrqoodyvmbhiuxz.supabase.co</code>) responde correctamente, pero tiene <strong>Row Level Security (RLS)</strong> activo por defecto sin políticas permisivas, o las tablas aún no tienen filas sembradas.
+                {status?.mensaje || 'No se ha podido determinar el estado de la conexión.'}
               </p>
 
-              <div className="bg-slate-900 text-slate-200 p-4 rounded-lg font-mono text-[11px] relative overflow-x-auto">
-                <button
-                  onClick={handleCopiarSql}
-                  className="absolute right-3 top-3 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] flex items-center gap-1"
-                >
-                  {copiado ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                  {copiado ? 'Copiado' : 'Copiar SQL'}
-                </button>
-                <pre>{sqlSolucion}</pre>
-              </div>
+              {status?.conteos && (
+                <div className="rounded border border-slate-200 bg-slate-50 p-3">
+                  <strong>Filas visibles para la clave pública:</strong>
+                  <ul className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-slate-600">
+                    {Object.entries(status.conteos).map(([tabla, cantidad]) => (
+                      <li key={tabla}><code>{tabla}</code>: {cantidad}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="space-y-1.5 text-slate-600 text-[11px]">
-                <div><strong>Pasos:</strong></div>
+                <div><strong>Verificaciones:</strong></div>
                 <ol className="list-decimal list-inside space-y-1">
-                  <li>Abre tu proyecto en <a href="https://supabase.com/dashboard/project/yzgbigrqoodyvmbhiuxz/sql" target="_blank" rel="noreferrer" className="text-blue-600 underline">Supabase SQL Editor</a>.</li>
-                  <li>Pega y ejecuta el comando anterior (o el archivo <code>supabase/fix_rls.sql</code>).</li>
-                  <li>Ejecuta el archivo <code>supabase/seed.sql</code> para insertar los 27 hallazgos base y los indicadores.</li>
-                  <li>Recarga esta página. SmurfDecisions cambiará automáticamente a <strong>"Datos en Vivo desde Supabase"</strong>.</li>
+                  <li>Confirma que el archivo local <code>.env</code> tenga <code>VITE_SUPABASE_URL</code> y <code>VITE_SUPABASE_ANON_KEY</code>; reinicia <code>npm run dev</code> después de cambiarlas.</li>
+                  <li>Verifica que existan las tablas <code>alertas</code>, <code>indicadores</code>, <code>valores_indicador</code>, <code>reglas</code>, <code>fuentes</code> y <code>ejecuciones</code>.</li>
+                  <li>Si RLS está activo, revisa las políticas para las operaciones de lectura y actualización que necesita la app.</li>
+                  <li>En n8n, configura sus credenciales de Supabase y Gemini directamente en la instancia. Nunca uses la clave <code>service_role</code> en la app ni en variables <code>VITE_</code>.</li>
+                  <li>No ejecutes los scripts de esquema, semilla o permisos de este repositorio sobre una base personalizada sin revisar primero sus efectos.</li>
                 </ol>
               </div>
             </div>
