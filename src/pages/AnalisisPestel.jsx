@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { getAlertas } from '../lib/dataService';
 import { FACTORES } from '../lib/catalogos';
+import { calcularPuntaje, normalizarValorEscala } from '../lib/puntaje';
 import NivelBadge from '../components/NivelBadge';
 import OrigenBadge from '../components/OrigenBadge';
 
@@ -181,11 +182,18 @@ export default function AnalisisPestel() {
             </h4>
 
             <div className="grid grid-cols-1 gap-4">
-              {datosFactorSeleccionado.alertas.map((alerta) => (
-                <div
-                  key={alerta.id}
-                  className="p-5 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors bg-white"
-                >
+              {datosFactorSeleccionado.alertas.map((alerta) => {
+                const probabilidad = normalizarValorEscala(alerta.probabilidad);
+                const impacto = normalizarValorEscala(alerta.impacto);
+                const calificacion = probabilidad !== null && impacto !== null
+                  ? calcularPuntaje(probabilidad, impacto)
+                  : null;
+
+                return (
+                  <div
+                    key={alerta.id}
+                    className="p-5 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors bg-white"
+                  >
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1.5">
@@ -235,14 +243,34 @@ export default function AnalisisPestel() {
                     </div>
 
                     <div className="sm:text-right shrink-0 flex sm:flex-col items-center sm:items-end justify-between gap-2 border-t sm:border-t-0 pt-2 sm:pt-0">
-                      <NivelBadge nivel={alerta.nivel} puntaje={alerta.puntaje} />
-                      <div className="text-[11px] text-slate-500">
-                        P: <strong>{alerta.probabilidad}</strong> &times; I: <strong>{alerta.impacto}</strong>
+                      {calificacion ? (
+                        <NivelBadge nivel={calificacion.nivel} puntaje={calificacion.puntaje} />
+                      ) : (
+                        <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                          Sin calificar
+                        </span>
+                      )}
+                      <div className="space-y-1 text-xs text-slate-600 text-right">
+                        <div>
+                          Probabilidad:{' '}
+                          <strong className="text-slate-800">
+                            {probabilidad ?? 'Sin asignar'}
+                            {probabilidad !== null && ' / 5'}
+                          </strong>
+                        </div>
+                        <div>
+                          Impacto:{' '}
+                          <strong className="text-slate-800">
+                            {impacto ?? 'Sin asignar'}
+                            {impacto !== null && ' / 5'}
+                          </strong>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
