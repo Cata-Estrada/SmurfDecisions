@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { getAlertas } from '../lib/dataService';
 import { FACTORES } from '../lib/catalogos';
+import { formatearFechaPublicacion } from '../lib/fechas';
 import { calcularPuntaje, normalizarValorEscala } from '../lib/puntaje';
 import NivelBadge from '../components/NivelBadge';
 import OrigenBadge from '../components/OrigenBadge';
@@ -241,7 +242,7 @@ export default function AnalisisPestel() {
                       <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-4 text-xs text-slate-500">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          Fecha: <strong className="text-slate-700">{alerta.fecha_publicacion}</strong>
+                          Fecha: <strong className="text-slate-700">{formatearFechaPublicacion(alerta.fecha_publicacion)}</strong>
                         </span>
                         <span>
                           Fuente: <strong className="text-slate-700">{alerta.fuente}</strong>
