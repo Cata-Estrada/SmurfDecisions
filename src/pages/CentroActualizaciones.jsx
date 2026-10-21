@@ -8,7 +8,9 @@ import {
   ExternalLink,
   Activity,
   Server,
-  Play
+  Play,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { getFuentes, getEjecuciones, getUltimoIdEjecucion } from '../lib/dataService';
 import { ejecutarFlujosN8n, esperarEjecucionN8n } from '../lib/n8nService';
@@ -16,6 +18,8 @@ import { ejecutarFlujosN8n, esperarEjecucionN8n } from '../lib/n8nService';
 export default function CentroActualizaciones() {
   const [fuentes, setFuentes] = useState([]);
   const [ejecuciones, setEjecuciones] = useState([]);
+  const [tamanoPagina, setTamanoPagina] = useState(10);
+  const [paginaActual, setPaginaActual] = useState(1);
   const [origenDatos, setOrigenDatos] = useState('local');
   const [cargando, setCargando] = useState(true);
   const [ejecutando, setEjecutando] = useState(false);
@@ -42,6 +46,7 @@ export default function CentroActualizaciones() {
 
     setFuentes(listaFuentes);
     setEjecuciones(listaEjecuciones);
+    setPaginaActual(1);
     setOrigenDatos(resFuentes?.source || resEjecuciones?.source || 'local');
     setCargando(false);
   }
@@ -109,6 +114,18 @@ export default function CentroActualizaciones() {
       return fechaIso;
     }
   };
+
+  const ejecucionesOrdenadas = [...ejecuciones].sort((a, b) => {
+    const fechaA = Date.parse(a.inicio) || 0;
+    const fechaB = Date.parse(b.inicio) || 0;
+    return fechaB - fechaA;
+  });
+  const totalPaginas = Math.max(1, Math.ceil(ejecucionesOrdenadas.length / tamanoPagina));
+  const paginaVisible = Math.min(paginaActual, totalPaginas);
+  const inicioFila = (paginaVisible - 1) * tamanoPagina;
+  const ejecucionesVisibles = ejecucionesOrdenadas.slice(inicioFila, inicioFila + tamanoPagina);
+  const primeraFila = ejecucionesOrdenadas.length === 0 ? 0 : inicioFila + 1;
+  const ultimaFila = Math.min(inicioFila + tamanoPagina, ejecucionesOrdenadas.length);
 
   return (
     <div className="space-y-8">
@@ -289,27 +306,27 @@ export default function CentroActualizaciones() {
       </div>
 
       {/* 2. Historial de Ejecuciones (Tabla ejecuciones) */}
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-slate-200">
-          <h3 className="text-sm font-bold text-slate-900">
+      <div className="w-full max-w-screen-2xl mx-auto bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-200 text-center">
+          <h3 className="text-base font-bold text-slate-900">
             Historial de Ejecuciones de Automatización (n8n &rarr; Supabase)
           </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 mt-1">
             Registro de cada ciclo de consulta, registros nuevos insertados y errores interceptados.
           </p>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+          <table className="w-full min-w-[1100px] text-sm text-center">
+            <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
               <tr>
-                <th className="py-3 px-4">Flujo</th>
-                <th className="py-3 px-4">Fuente Consultada</th>
-                <th className="py-3 px-4">Inicio</th>
-                <th className="py-3 px-4">Fin</th>
-                <th className="py-3 px-4">Registros Nuevos</th>
-                <th className="py-3 px-4">Estado</th>
-                <th className="py-3 px-4">Mensaje de Error</th>
+                <th className="py-4 px-5">Flujo</th>
+                <th className="py-4 px-5">Fuente Consultada</th>
+                <th className="py-4 px-5">Inicio</th>
+                <th className="py-4 px-5">Fin</th>
+                <th className="py-4 px-5">Registros Nuevos</th>
+                <th className="py-4 px-5">Estado</th>
+                <th className="py-4 px-5">Mensaje de Error</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -320,24 +337,24 @@ export default function CentroActualizaciones() {
                   </td>
                 </tr>
               ) : (
-                ejecuciones.map((e) => (
+                ejecucionesVisibles.map((e) => (
                   <tr key={e.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-4 font-semibold text-slate-800">
+                    <td className="py-4 px-5 font-semibold text-slate-800">
                       {e.flujo}
                     </td>
-                    <td className="py-3 px-4 text-slate-600">
+                    <td className="py-4 px-5 text-slate-600">
                       {e.fuente}
                     </td>
-                    <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
+                    <td className="py-4 px-5 text-slate-500 font-mono text-xs">
                       {formatearFechaHora(e.inicio)}
                     </td>
-                    <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
+                    <td className="py-4 px-5 text-slate-500 font-mono text-xs">
                       {formatearFechaHora(e.fin)}
                     </td>
-                    <td className="py-3 px-4 text-slate-700 font-bold">
+                    <td className="py-4 px-5 text-slate-700 font-bold">
                       +{e.registros_nuevos}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-4 px-5">
                       {e.estado === 'ok' ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
                           <CheckCircle2 className="w-3 h-3" />
@@ -350,7 +367,7 @@ export default function CentroActualizaciones() {
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-slate-500 italic max-w-xs truncate">
+                    <td className="py-4 px-5 text-slate-500 italic max-w-xs truncate">
                       {e.mensaje_error || 'Ninguno'}
                     </td>
                   </tr>
@@ -358,6 +375,50 @@ export default function CentroActualizaciones() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200 px-5 py-4 text-sm">
+          <div className="flex items-center gap-2 text-slate-600">
+            <label htmlFor="tamano-pagina-ejecuciones">Filas por página:</label>
+            <select
+              id="tamano-pagina-ejecuciones"
+              value={tamanoPagina}
+              onChange={(e) => {
+                setTamanoPagina(Number(e.target.value));
+                setPaginaActual(1);
+              }}
+              className="rounded border border-slate-300 bg-white px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {[10, 25, 50, 100].map((cantidad) => (
+                <option key={cantidad} value={cantidad}>{cantidad}</option>
+              ))}
+            </select>
+            <span className="text-slate-500">
+              {primeraFila}–{ultimaFila} de {ejecucionesOrdenadas.length}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-slate-600">
+              Página {paginaVisible} de {totalPaginas}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPaginaActual((pagina) => Math.max(1, pagina - 1))}
+              disabled={paginaVisible === 1}
+              className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaginaActual((pagina) => Math.min(totalPaginas, pagina + 1))}
+              disabled={paginaVisible === totalPaginas || ejecucionesOrdenadas.length === 0}
+              className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Siguiente
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -11,11 +11,13 @@ import {
   Sliders,
   ShieldAlert,
   ChevronRight,
-  Info
+  Info,
+  AlertTriangle
 } from 'lucide-react';
 import { getAlertas, actualizarAlerta } from '../lib/dataService';
 import { FACTORES, AREAS, ESTADOS_ALERTA, TIPOS_EVENTO } from '../lib/catalogos';
-import { calcularPuntaje } from '../lib/puntaje';
+import { formatearFechaPublicacion } from '../lib/fechas';
+import { calcularPuntaje, normalizarValorEscala } from '../lib/puntaje';
 import NivelBadge from '../components/NivelBadge';
 import OrigenBadge from '../components/OrigenBadge';
 
@@ -35,8 +37,8 @@ export default function NoticiasAnalizadas() {
 
   // Estado del formulario de edición del panel de detalle
   const [formEdicion, setFormEdicion] = useState({
-    probabilidad: 1,
-    impacto: 1,
+    probabilidad: null,
+    impacto: null,
     factor: '',
     area: '',
     tipo_evento: '',
@@ -60,8 +62,8 @@ export default function NoticiasAnalizadas() {
   function seleccionarAlerta(alerta) {
     setAlertaSeleccionada(alerta);
     setFormEdicion({
-      probabilidad: alerta.probabilidad,
-      impacto: alerta.impacto,
+      probabilidad: normalizarValorEscala(alerta.probabilidad),
+      impacto: normalizarValorEscala(alerta.impacto),
       factor: alerta.factor,
       area: alerta.area,
       tipo_evento: alerta.tipo_evento,
@@ -89,13 +91,21 @@ export default function NoticiasAnalizadas() {
   // Cálculo en vivo del puntaje según los sliders de edición
   const [mensajePersistencia, setMensajePersistencia] = useState(null);
 
-  const calculoEnVivo = calcularPuntaje(
-    formEdicion.probabilidad,
-    formEdicion.impacto
-  );
+  const calificacionCompleta =
+    formEdicion.probabilidad !== null && formEdicion.impacto !== null;
+  const calculoEnVivo = calificacionCompleta
+    ? calcularPuntaje(formEdicion.probabilidad, formEdicion.impacto)
+    : null;
 
   async function handleGuardarAjustes() {
     if (!alertaSeleccionada) return;
+    if (!calificacionCompleta) {
+      setMensajePersistencia({
+        tipo: 'warning',
+        texto: 'Asigna probabilidad e impacto (de 1 a 5) antes de guardar.'
+      });
+      return;
+    }
     setGuardando(true);
     setMensajePersistencia(null);
 
@@ -297,7 +307,7 @@ export default function NoticiasAnalizadas() {
                           {alerta.titulo}
                         </h4>
                         <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-500">
-                          <span>Fecha: <strong className="text-slate-700">{alerta.fecha_publicacion}</strong></span>
+                          <span>Fecha: <strong className="text-slate-700">{formatearFechaPublicacion(alerta.fecha_publicacion)}</strong></span>
                           <span>Fuente: <strong className="text-slate-700 truncate max-w-[120px]">{alerta.fuente}</strong></span>
                         </div>
                       </div>
@@ -322,8 +332,14 @@ export default function NoticiasAnalizadas() {
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
                     <OrigenBadge origen={alertaSeleccionada.origen} />
-                    <NivelBadge nivel={calculoEnVivo.nivel} puntaje={calculoEnVivo.puntaje} />
-                    {calculoEnVivo.prioritaria && (
+                    {calculoEnVivo ? (
+                      <NivelBadge nivel={calculoEnVivo.nivel} puntaje={calculoEnVivo.puntaje} />
+                    ) : (
+                      <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                        Sin calificar
+                      </span>
+                    )}
+                    {calculoEnVivo?.prioritaria && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-red-100 text-red-800 px-2 py-0.5 rounded">
                         <ShieldAlert className="w-3 h-3" />
                         Prioritaria
@@ -355,7 +371,7 @@ export default function NoticiasAnalizadas() {
                 <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
                   <div>
                     <span className="text-slate-500">Fecha de publicación:</span>
-                    <div className="font-medium text-slate-800">{alertaSeleccionada.fecha_publicacion}</div>
+                    <div className="font-medium text-slate-800">{formatearFechaPublicacion(alertaSeleccionada.fecha_publicacion)}</div>
                   </div>
                   <div>
                     <span className="text-slate-500">Fuente original:</span>
@@ -392,41 +408,87 @@ export default function NoticiasAnalizadas() {
                   <div>
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-slate-600">Probabilidad:</span>
-                      <strong className="text-slate-900">{formEdicion.probabilidad} / 5</strong>
+                      <strong className="text-slate-900">
+                        {formEdicion.probabilidad === null
+                          ? 'Sin asignar'
+                          : `${formEdicion.probabilidad} / 5`}
+                      </strong>
                     </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="5"
-                      value={formEdicion.probabilidad}
-                      onChange={(e) =>
-                        setFormEdicion({ ...formEdicion, probabilidad: parseInt(e.target.value, 10) })
-                      }
-                      className="w-full accent-blue-600"
-                    />
+                    {formEdicion.probabilidad === null ? (
+                      <select
+                        value=""
+                        onChange={(e) =>
+                          setFormEdicion({
+                            ...formEdicion,
+                            probabilidad: e.target.value ? parseInt(e.target.value, 10) : null
+                          })
+                        }
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+                      >
+                        <option value="">Selecciona de 1 a 5</option>
+                        {[1, 2, 3, 4, 5].map((valor) => (
+                          <option key={valor} value={valor}>{valor}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="range"
+                        min="1"
+                        max="5"
+                        value={formEdicion.probabilidad}
+                        onChange={(e) =>
+                          setFormEdicion({ ...formEdicion, probabilidad: parseInt(e.target.value, 10) })
+                        }
+                        className="w-full accent-blue-600"
+                      />
+                    )}
                   </div>
 
                   <div>
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-slate-600">Impacto:</span>
-                      <strong className="text-slate-900">{formEdicion.impacto} / 5</strong>
+                      <strong className="text-slate-900">
+                        {formEdicion.impacto === null
+                          ? 'Sin asignar'
+                          : `${formEdicion.impacto} / 5`}
+                      </strong>
                     </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="5"
-                      value={formEdicion.impacto}
-                      onChange={(e) =>
-                        setFormEdicion({ ...formEdicion, impacto: parseInt(e.target.value, 10) })
-                      }
-                      className="w-full accent-blue-600"
-                    />
+                    {formEdicion.impacto === null ? (
+                      <select
+                        value=""
+                        onChange={(e) =>
+                          setFormEdicion({
+                            ...formEdicion,
+                            impacto: e.target.value ? parseInt(e.target.value, 10) : null
+                          })
+                        }
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+                      >
+                        <option value="">Selecciona de 1 a 5</option>
+                        {[1, 2, 3, 4, 5].map((valor) => (
+                          <option key={valor} value={valor}>{valor}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="range"
+                        min="1"
+                        max="5"
+                        value={formEdicion.impacto}
+                        onChange={(e) =>
+                          setFormEdicion({ ...formEdicion, impacto: parseInt(e.target.value, 10) })
+                        }
+                        className="w-full accent-blue-600"
+                      />
+                    )}
                   </div>
 
                   <div className="col-span-2 pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
                     <span className="text-slate-500">Puntaje recalculado:</span>
                     <span className="font-bold text-slate-900">
-                      {formEdicion.probabilidad} &times; {formEdicion.impacto} = {calculoEnVivo.puntaje} ({calculoEnVivo.nivel})
+                      {calculoEnVivo
+                        ? `${formEdicion.probabilidad} × ${formEdicion.impacto} = ${calculoEnVivo.puntaje} (${calculoEnVivo.nivel})`
+                        : 'Asigna ambos valores para calcular'}
                     </span>
                   </div>
                 </div>
@@ -476,7 +538,7 @@ export default function NoticiasAnalizadas() {
                 {/* Botón Guardar Ajustes */}
                 <button
                   onClick={handleGuardarAjustes}
-                  disabled={guardando}
+                  disabled={guardando || !calificacionCompleta}
                   className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded text-xs font-semibold hover:bg-slate-800 transition-colors disabled:opacity-50"
                 >
                   <Save className="w-3.5 h-3.5" />

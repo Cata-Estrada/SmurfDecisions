@@ -163,7 +163,7 @@ export async function actualizarAlerta(id, campos) {
         .update(alertaActualizada)
         .eq('id', id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (!error && data) {
         return { data, source: 'supabase', error: null };
@@ -171,6 +171,9 @@ export async function actualizarAlerta(id, campos) {
       if (error) {
         errorSupabase = error.message;
         console.error('Error actualizando alerta en Supabase:', error.message);
+      } else {
+        errorSupabase = `Supabase no devolvió la alerta ${id} después de actualizarla. Verifica que el ID exista y que los permisos permitan actualizar y leer la fila.`;
+        console.warn(errorSupabase);
       }
     } catch (err) {
       errorSupabase = err.message;
