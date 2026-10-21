@@ -44,9 +44,11 @@ export default function Layout() {
         {/* Encabezado institucional */}
         <div className="p-5 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-              S
-            </div>
+            <img
+              src="https://cl-paris-media-hub.ecomm.cencosud.com/files/landing/institucional/dia-de-madre/paris-cajita.png"
+              alt="Smurfit Westrock"
+              className="w-9 h-9 rounded object-cover shadow-sm"
+            />
             <div>
               <h1 className="text-sm font-bold text-white tracking-tight leading-none">
                 SmurfDecisions
