@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { getAlertas } from '../lib/dataService';
 import { FACTORES } from '../lib/catalogos';
+import { calcularPuntaje, normalizarValorEscala } from '../lib/puntaje';
 import NivelBadge from '../components/NivelBadge';
 import OrigenBadge from '../components/OrigenBadge';
 
@@ -23,6 +24,15 @@ const TENDENCIAS_BASE = {
   Tecnológico: { tendencia: 'sube', explicacion: 'Aceleración de IA y automatización para absorber sobrecostos de nómina.' },
   Ecológico: { tendencia: 'sube', explicacion: 'El Niño con intensidad fuerte a muy fuerte; sequía y pico de incendios.' },
   Legal: { tendencia: 'sube', explicacion: 'Jornada reducida a 42h, recargos dominicales al 90% y reforma tributaria.' }
+};
+
+const ESTILOS_FACTOR = {
+  Político: { inicial: 'P', color: '#102A56', activo: 'border-blue-500 ring-2 ring-blue-500/20' },
+  Económico: { inicial: 'E', color: '#174A8B', activo: 'border-blue-500 ring-2 ring-blue-500/20' },
+  Social: { inicial: 'S', color: '#2166B1', activo: 'border-blue-500 ring-2 ring-blue-500/20' },
+  Tecnológico: { inicial: 'T', color: '#347FC4', activo: 'border-blue-500 ring-2 ring-blue-500/20' },
+  Ecológico: { inicial: 'E', color: '#579DDA', activo: 'border-blue-500 ring-2 ring-blue-500/20' },
+  Legal: { inicial: 'L', color: '#82B9E8', activo: 'border-blue-500 ring-2 ring-blue-500/20' }
 };
 
 export default function AnalisisPestel() {
@@ -111,25 +121,34 @@ export default function AnalisisPestel() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {metricasPorFactor.map((m) => {
           const esActivo = m.factor === factorActivo;
+          const estiloFactor = ESTILOS_FACTOR[m.factor];
           return (
             <button
               key={m.factor}
               onClick={() => setFactorActivo(m.factor)}
-              className={`p-3.5 rounded-lg border text-left transition-all flex flex-col justify-between ${
+              className={`rounded-lg border text-left transition-all flex overflow-hidden min-h-[96px] ${
                 esActivo
-                  ? 'bg-white border-blue-600 ring-2 ring-blue-500/20 shadow-sm'
+                  ? `bg-white ${estiloFactor.activo} shadow-sm`
                   : 'bg-white/80 border-slate-200 hover:border-slate-300 hover:bg-white'
               }`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className={`text-xs font-bold ${esActivo ? 'text-blue-700' : 'text-slate-700'}`}>
-                  {m.factor}
-                </span>
-                <NivelBadge nivel={m.nivel} puntaje={m.maxPuntaje} size="sm" />
-              </div>
-              <span className="text-[11px] text-slate-500">
-                {m.total} hallazgo(s)
+              <span
+                className="w-1/3 shrink-0 flex items-center justify-center text-6xl font-black text-white"
+                style={{ backgroundColor: estiloFactor.color }}
+              >
+                {estiloFactor.inicial}
               </span>
+              <div className="flex-1 min-w-0 p-3 flex flex-col justify-between gap-2">
+                <div>
+                  <span className="block text-xs font-bold text-slate-700">
+                    {m.factor}
+                  </span>
+                  <NivelBadge nivel={m.nivel} puntaje={m.maxPuntaje} size="sm" />
+                </div>
+                <span className="text-[11px] text-slate-500">
+                  {m.total} hallazgo(s)
+                </span>
+              </div>
             </button>
           );
         })}
@@ -181,11 +200,18 @@ export default function AnalisisPestel() {
             </h4>
 
             <div className="grid grid-cols-1 gap-4">
-              {datosFactorSeleccionado.alertas.map((alerta) => (
-                <div
-                  key={alerta.id}
-                  className="p-5 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors bg-white"
-                >
+              {datosFactorSeleccionado.alertas.map((alerta) => {
+                const probabilidad = normalizarValorEscala(alerta.probabilidad);
+                const impacto = normalizarValorEscala(alerta.impacto);
+                const calificacion = probabilidad !== null && impacto !== null
+                  ? calcularPuntaje(probabilidad, impacto)
+                  : null;
+
+                return (
+                  <div
+                    key={alerta.id}
+                    className="p-5 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors bg-white"
+                  >
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1.5">
@@ -235,14 +261,34 @@ export default function AnalisisPestel() {
                     </div>
 
                     <div className="sm:text-right shrink-0 flex sm:flex-col items-center sm:items-end justify-between gap-2 border-t sm:border-t-0 pt-2 sm:pt-0">
-                      <NivelBadge nivel={alerta.nivel} puntaje={alerta.puntaje} />
-                      <div className="text-[11px] text-slate-500">
-                        P: <strong>{alerta.probabilidad}</strong> &times; I: <strong>{alerta.impacto}</strong>
+                      {calificacion ? (
+                        <NivelBadge nivel={calificacion.nivel} puntaje={calificacion.puntaje} />
+                      ) : (
+                        <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                          Sin calificar
+                        </span>
+                      )}
+                      <div className="space-y-1 text-xs text-slate-600 text-right">
+                        <div>
+                          Probabilidad:{' '}
+                          <strong className="text-slate-800">
+                            {probabilidad ?? 'Sin asignar'}
+                            {probabilidad !== null && ' / 5'}
+                          </strong>
+                        </div>
+                        <div>
+                          Impacto:{' '}
+                          <strong className="text-slate-800">
+                            {impacto ?? 'Sin asignar'}
+                            {impacto !== null && ' / 5'}
+                          </strong>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

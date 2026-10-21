@@ -71,6 +71,15 @@ export function calcularPuntaje(probabilidad, impacto) {
   };
 }
 
+export function normalizarValorEscala(valor) {
+  if (valor === null || valor === undefined || valor === '') return null;
+
+  const numero = Number(valor);
+  return Number.isInteger(numero) && numero >= 1 && numero <= 5
+    ? numero
+    : null;
+}
+
 /**
  * Obtiene los estilos visuales para un nivel de texto dado.
  * @param {'Alto'|'Medio'|'Bajo'} nivel
