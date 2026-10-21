@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { getAlertas, actualizarAlerta } from '../lib/dataService';
 import { FACTORES, AREAS, ESTADOS_ALERTA, TIPOS_EVENTO } from '../lib/catalogos';
+import { formatearFechaPublicacion } from '../lib/fechas';
 import { calcularPuntaje, normalizarValorEscala } from '../lib/puntaje';
 import NivelBadge from '../components/NivelBadge';
 import OrigenBadge from '../components/OrigenBadge';
@@ -306,7 +307,7 @@ export default function NoticiasAnalizadas() {
                           {alerta.titulo}
                         </h4>
                         <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-500">
-                          <span>Fecha: <strong className="text-slate-700">{alerta.fecha_publicacion}</strong></span>
+                          <span>Fecha: <strong className="text-slate-700">{formatearFechaPublicacion(alerta.fecha_publicacion)}</strong></span>
                           <span>Fuente: <strong className="text-slate-700 truncate max-w-[120px]">{alerta.fuente}</strong></span>
                         </div>
                       </div>
@@ -370,7 +371,7 @@ export default function NoticiasAnalizadas() {
                 <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
                   <div>
                     <span className="text-slate-500">Fecha de publicación:</span>
-                    <div className="font-medium text-slate-800">{alertaSeleccionada.fecha_publicacion}</div>
+                    <div className="font-medium text-slate-800">{formatearFechaPublicacion(alertaSeleccionada.fecha_publicacion)}</div>
                   </div>
                   <div>
                     <span className="text-slate-500">Fuente original:</span>
