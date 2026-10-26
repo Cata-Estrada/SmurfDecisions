@@ -14,14 +14,14 @@ export default function IndicadorCard({
   fecha,
   fuente,
   frecuenciaDias = 3,
-  referenciaFecha = '2026-10-19'
+  referenciaFecha
 }) {
-  // Comprobar desactualización (> frecuencia en días respecto a la fecha del sistema)
-  const fechaDato = new Date(fecha);
-  const fechaRef = new Date(referenciaFecha);
-  const diffTiempo = Math.abs(fechaRef - fechaDato);
-  const diffDias = Math.ceil(diffTiempo / (1000 * 60 * 60 * 24));
-  const desactualizado = diffDias > frecuenciaDias;
+  const fechaDato = fecha ? new Date(fecha) : null;
+  const fechaRef = referenciaFecha ? new Date(referenciaFecha) : new Date();
+  const diffDias = fechaDato
+    ? Math.ceil(Math.abs(fechaRef - fechaDato) / (1000 * 60 * 60 * 24))
+    : null;
+  const desactualizado = !Number.isFinite(diffDias) || diffDias > frecuenciaDias;
 
   const formatearValor = (val, cod) => {
     if (val === null || val === undefined) return '-';
@@ -50,7 +50,9 @@ export default function IndicadorCard({
         {desactualizado ? (
           <span
             className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded"
-            title={`Última actualización hace ${diffDias} días`}
+            title={Number.isFinite(diffDias)
+              ? `Última actualización hace ${diffDias} días`
+              : 'No hay una fecha de actualización registrada'}
           >
             <Clock className="w-3.5 h-3.5" />
             Desactualizado

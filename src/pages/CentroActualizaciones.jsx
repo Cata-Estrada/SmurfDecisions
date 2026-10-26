@@ -14,52 +14,51 @@ import {
 } from 'lucide-react';
 import { getFuentes, getEjecuciones, getUltimoIdEjecucion } from '../lib/dataService';
 import { ejecutarFlujosN8n, esperarEjecucionN8n } from '../lib/n8nService';
+import { useAuth } from '../lib/authContext';
 
 export default function CentroActualizaciones() {
+  const { empresaId, permisos } = useAuth();
   const [fuentes, setFuentes] = useState([]);
   const [ejecuciones, setEjecuciones] = useState([]);
   const [tamanoPagina, setTamanoPagina] = useState(10);
   const [paginaActual, setPaginaActual] = useState(1);
-  const [origenDatos, setOrigenDatos] = useState('local');
+  const [origenDatos, setOrigenDatos] = useState('supabase');
   const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
   const [ejecutando, setEjecutando] = useState(false);
   const [resultadoEjecucion, setResultadoEjecucion] = useState(null);
 
   async function cargarDatos() {
     setCargando(true);
-    const [resFuentes, resEjecuciones] = await Promise.all([
-      getFuentes(),
-      getEjecuciones()
-    ]);
+    setErrorCarga('');
+    try {
+      const [resFuentes, resEjecuciones] = await Promise.all([
+        getFuentes(empresaId),
+        getEjecuciones(empresaId)
+      ]);
 
-    const listaFuentes = Array.isArray(resFuentes)
-      ? resFuentes
-      : (resFuentes?.data && Array.isArray(resFuentes.data))
-      ? resFuentes.data
-      : [];
-
-    const listaEjecuciones = Array.isArray(resEjecuciones)
-      ? resEjecuciones
-      : (resEjecuciones?.data && Array.isArray(resEjecuciones.data))
-      ? resEjecuciones.data
-      : [];
-
-    setFuentes(listaFuentes);
-    setEjecuciones(listaEjecuciones);
-    setPaginaActual(1);
-    setOrigenDatos(resFuentes?.source || resEjecuciones?.source || 'local');
-    setCargando(false);
+      setFuentes(resFuentes.data);
+      setEjecuciones(resEjecuciones.data);
+      setPaginaActual(1);
+      setOrigenDatos('supabase');
+    } catch (loadError) {
+      setErrorCarga(loadError.message);
+      setFuentes([]);
+      setEjecuciones([]);
+    } finally {
+      setCargando(false);
+    }
   }
 
   useEffect(() => {
     cargarDatos();
-  }, []);
+  }, [empresaId]);
 
   async function iniciarFlujos() {
     setEjecutando(true);
     setResultadoEjecucion(null);
     try {
-      const idMinimo = await getUltimoIdEjecucion();
+      const idMinimo = await getUltimoIdEjecucion(empresaId);
       await ejecutarFlujosN8n();
       setResultadoEjecucion({
         tipo: 'pending',
@@ -69,6 +68,7 @@ export default function CentroActualizaciones() {
 
       const resultado = await esperarEjecucionN8n({
         idMinimo,
+        empresaId,
         onActualizacion: (ejecuciones) => {
           setResultadoEjecucion({
             tipo: 'pending',
@@ -151,11 +151,18 @@ export default function CentroActualizaciones() {
           </p>
         </div>
 
+        {errorCarga && (
+          <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            {errorCarga}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={iniciarFlujos}
-            disabled={ejecutando}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 border border-blue-700 text-white text-xs font-semibold rounded hover:bg-blue-800 transition-colors shadow-sm disabled:opacity-60"
+            disabled={ejecutando || !permisos.puedeGestionarReglas}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 border border-blue-700 text-white text-xs font-semibold rounded hover:bg-blue-800 transition-colors shadow-sm disabled:opacity-50"
+            title={!permisos.puedeGestionarReglas ? 'Requiere rol de Gerente para disparar flujos de automatización' : ''}
           >
             <Play className={`w-3.5 h-3.5 ${ejecutando ? 'animate-pulse' : ''}`} />
             {ejecutando ? 'Esperando resultado…' : 'Ejecutar flujos n8n'}

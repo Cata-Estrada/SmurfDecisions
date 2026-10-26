@@ -21,6 +21,70 @@ function isLocalBrowserRequest(req) {
   }
 }
 
+async function verificarGerente(token, env) {
+  const supabaseUrl = env.VITE_SUPABASE_URL;
+  const anonKey = env.VITE_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) {
+    return { status: 503, message: 'Supabase no está configurado en el servidor de desarrollo.' };
+  }
+
+  let usuarioResponse;
+  try {
+    usuarioResponse = await fetch(new URL('/auth/v1/user', supabaseUrl), {
+      headers: { apikey: anonKey, Authorization: `Bearer ${token}` }
+    });
+  } catch {
+    return { status: 502, message: 'No se pudo validar la sesión con Supabase.' };
+  }
+  if (usuarioResponse.status === 401 || usuarioResponse.status === 403) {
+    return { status: 401, message: 'La sesión no es válida o ha expirado.' };
+  }
+  if (!usuarioResponse.ok) {
+    return { status: 502, message: 'Supabase no pudo validar la sesión.' };
+  }
+
+  let usuario;
+  try {
+    usuario = await usuarioResponse.json();
+  } catch {
+    return { status: 502, message: 'Supabase devolvió una respuesta de autenticación inválida.' };
+  }
+  if (!usuario.id) return { status: 401, message: 'La sesión no contiene un usuario válido.' };
+
+  const perfilUrl = new URL('/rest/v1/perfiles', supabaseUrl);
+  perfilUrl.searchParams.set('select', 'empresa_id,rol,activo');
+  perfilUrl.searchParams.set('id', `eq.${usuario.id}`);
+  perfilUrl.searchParams.set('limit', '1');
+
+  let perfilResponse;
+  try {
+    perfilResponse = await fetch(perfilUrl, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${token}` }
+    });
+  } catch {
+    return { status: 502, message: 'No se pudo validar el rol en Supabase.' };
+  }
+  if (!perfilResponse.ok) {
+    return { status: 502, message: 'Supabase no pudo consultar el perfil de la sesión.' };
+  }
+
+  let perfiles;
+  try {
+    perfiles = await perfilResponse.json();
+  } catch {
+    return { status: 502, message: 'Supabase devolvió un perfil inválido.' };
+  }
+  const perfil = Array.isArray(perfiles) ? perfiles[0] : null;
+  if (!perfil?.activo || !perfil.empresa_id) {
+    return { status: 403, message: 'La cuenta no tiene una membresía activa.' };
+  }
+  if (perfil.rol !== 'gerente') {
+    return { status: 403, message: 'Solo una cuenta Gerente puede ejecutar los flujos.' };
+  }
+
+  return { empresaId: perfil.empresa_id };
+}
+
 function n8nRefreshPlugin(env) {
   const webhookUrl = env.N8N_WEBHOOK_URL;
   const webhookToken = env.N8N_WEBHOOK_KEY;
@@ -45,6 +109,19 @@ function n8nRefreshPlugin(env) {
 
         if (!isLocalBrowserRequest(req)) {
           respond(403, { message: 'La ejecución solo se permite desde esta app en localhost.' });
+          return;
+        }
+
+        const authorization = req.headers.authorization || '';
+        const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
+        if (!tokenMatch) {
+          respond(401, { message: 'Debes iniciar sesión para ejecutar los flujos.' });
+          return;
+        }
+
+        const acceso = await verificarGerente(tokenMatch[1], env);
+        if (acceso.status) {
+          respond(acceso.status, { message: acceso.message });
           return;
         }
 
@@ -80,7 +157,10 @@ function n8nRefreshPlugin(env) {
               'Content-Type': 'application/json',
               'X-API-Key': webhookToken
             },
-            body: JSON.stringify({ requestedAt }),
+            body: JSON.stringify({
+              requestedAt,
+              empresaId: acceso.empresaId
+            }),
             signal: controller.signal
           });
 
@@ -100,7 +180,8 @@ function n8nRefreshPlugin(env) {
             message: 'n8n aceptó la solicitud.',
             requestedAt
           });
-        } catch {
+        } catch (error) {
+          server.config.logger.error('[n8n] Falló la solicitud al webhook configurado.', error);
           respond(502, {
             message: 'No se pudo contactar el webhook de n8n; verifica su URL y disponibilidad.'
           });

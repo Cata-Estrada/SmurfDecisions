@@ -11,35 +11,52 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { getUltimoValorIndicador } from '../lib/dataService';
+import { useAuth } from '../lib/authContext';
 
 export default function SimuladorEconomico() {
-  const [trmBase, setTrmBase] = useState(3197.65);
-  const [fechaTrm, setFechaTrm] = useState('2026-10-15');
-  const [fuenteTrm, setFuenteTrm] = useState('Superfinanciera');
+  const { empresaId } = useAuth();
+  const [trmBase, setTrmBase] = useState(null);
+  const [fechaTrm, setFechaTrm] = useState('');
+  const [fuenteTrm, setFuenteTrm] = useState('');
   const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
 
   // Parámetros de simulación
   const [montoUsd, setMontoUsd] = useState(100000); // USD 100.000 por defecto (Ejemplo 2)
   const [modoEscenario, setModoEscenario] = useState('porcentaje'); // 'porcentaje' | 'valor_directo'
   const [variacionPct, setVariacionPct] = useState(5); // +5%
-  const [trmSimuladaManual, setTrmSimuladaManual] = useState(3357.53);
+  const [trmSimuladaManual, setTrmSimuladaManual] = useState(0);
 
   useEffect(() => {
     async function cargarTrm() {
       setCargando(true);
-      const dato = await getUltimoValorIndicador('TRM');
-      if (dato) {
+      setError('');
+      try {
+        const dato = await getUltimoValorIndicador('TRM', empresaId);
+        if (!dato) {
+          throw new Error('No hay un indicador TRM registrado para esta empresa en la base de datos.');
+        }
         const val = Number(dato.valor);
         setTrmBase(val);
         setFechaTrm(dato.fecha);
         setFuenteTrm(dato.fuente);
-        // Inicializar escenario con +5%
         setTrmSimuladaManual(Number((val * 1.05).toFixed(2)));
+      } catch (loadError) {
+        setError(loadError.message);
+      } finally {
+        setCargando(false);
       }
-      setCargando(false);
     }
     cargarTrm();
-  }, []);
+  }, [empresaId]);
+
+  if (cargando) {
+    return <div className="p-12 text-center text-sm text-slate-500">Cargando TRM de la empresa…</div>;
+  }
+
+  if (error) {
+    return <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>;
+  }
 
   // Calcular TRM del escenario
   const trmEscenario = modoEscenario === 'porcentaje'
@@ -223,7 +240,7 @@ export default function SimuladorEconomico() {
 
           <div className="pt-3 border-t border-slate-100">
             <Link
-              to="/recomendador"
+              to="/dashboard/recomendador"
               className="text-xs text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1"
             >
               Consultar recomendaciones de abastecimiento

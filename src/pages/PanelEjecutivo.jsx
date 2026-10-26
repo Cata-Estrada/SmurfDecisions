@@ -11,29 +11,38 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { getAlertas, getValoresIndicadores } from '../lib/dataService';
+import { useAuth } from '../lib/authContext';
 import { FACTORES } from '../lib/catalogos';
 import IndicadorCard from '../components/IndicadorCard';
 import NivelBadge from '../components/NivelBadge';
 import OrigenBadge from '../components/OrigenBadge';
 
 export default function PanelEjecutivo() {
+  const { empresaId } = useAuth();
   const [indicadores, setIndicadores] = useState([]);
   const [alertas, setAlertas] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     async function cargarDatos() {
       setCargando(true);
-      const [resAlertas, resIndicadores] = await Promise.all([
-        getAlertas(),
-        getValoresIndicadores()
-      ]);
-      setAlertas(resAlertas.data || []);
-      setIndicadores(resIndicadores.data || []);
-      setCargando(false);
+      setError('');
+      try {
+        const [resAlertas, resIndicadores] = await Promise.all([
+          getAlertas(empresaId),
+          getValoresIndicadores(empresaId)
+        ]);
+        setAlertas(resAlertas.data);
+        setIndicadores(resIndicadores.data);
+      } catch (loadError) {
+        setError(loadError.message);
+      } finally {
+        setCargando(false);
+      }
     }
     cargarDatos();
-  }, []);
+  }, [empresaId]);
 
   // Filtrar solo alertas validadas para el cálculo ejecutivo
   const alertasValidadas = alertas.filter((a) => a.estado === 'validada');
@@ -81,6 +90,10 @@ export default function PanelEjecutivo() {
     );
   }
 
+  if (error) {
+    return <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>;
+  }
+
   return (
     <div className="space-y-8">
       {/* Encabezado del Módulo */}
@@ -95,7 +108,7 @@ export default function PanelEjecutivo() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            to="/noticias"
+            to="/dashboard/noticias"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 text-xs font-medium rounded hover:bg-slate-50 transition-colors shadow-sm"
           >
             Revisar noticias pendientes
@@ -123,7 +136,6 @@ export default function PanelEjecutivo() {
             fecha={trm?.fecha}
             fuente={trm?.fuente}
             frecuenciaDias={3}
-            referenciaFecha="2026-10-19"
           />
           <IndicadorCard
             titulo="Inflación Anual (IPC)"
@@ -133,7 +145,6 @@ export default function PanelEjecutivo() {
             fecha={ipc?.fecha}
             fuente={ipc?.fuente}
             frecuenciaDias={40} // Mensual
-            referenciaFecha="2026-10-19"
           />
           <IndicadorCard
             titulo="Tasa de Intervención de Política"
@@ -143,7 +154,6 @@ export default function PanelEjecutivo() {
             fecha={banrep?.fecha}
             fuente={banrep?.fuente}
             frecuenciaDias={45} // Periodicidad de junta
-            referenciaFecha="2026-10-19"
           />
         </div>
       </section>
@@ -160,7 +170,7 @@ export default function PanelEjecutivo() {
             </p>
           </div>
           <Link
-            to="/pestel"
+            to="/dashboard/pestel"
             className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
           >
             Ver análisis completo
@@ -239,7 +249,7 @@ export default function PanelEjecutivo() {
                     <div className="flex flex-col items-end gap-2">
                       <NivelBadge nivel={alerta.nivel} puntaje={alerta.puntaje} />
                       <Link
-                        to="/noticias"
+                        to="/dashboard/noticias"
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-1"
                       >
                         Detalle
@@ -253,7 +263,7 @@ export default function PanelEjecutivo() {
           </div>
           <div className="p-3 bg-slate-50 border-t border-slate-100 text-right">
             <Link
-              to="/noticias"
+              to="/dashboard/noticias"
               className="text-xs font-semibold text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
             >
               Ver todas las alertas validadas ({alertasValidadas.length})
@@ -306,7 +316,7 @@ export default function PanelEjecutivo() {
                       Tipo: <code className="bg-slate-100 px-1 py-0.5 rounded">{alerta.tipo_evento}</code>
                     </span>
                     <Link
-                      to="/recomendador"
+                      to="/dashboard/recomendador"
                       className="text-xs text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1"
                     >
                       Decidir
@@ -320,7 +330,7 @@ export default function PanelEjecutivo() {
 
           <div className="p-4 bg-slate-50 border-t border-slate-100">
             <Link
-              to="/recomendador"
+              to="/dashboard/recomendador"
               className="w-full inline-flex justify-center items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700 transition-colors"
             >
               Gestionar Decisiones en Recomendador
