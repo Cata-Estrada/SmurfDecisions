@@ -283,7 +283,7 @@ declare
   tabla text;
 begin
   foreach tabla in array array[
-    'indicadores', 'valores_indicador', 'reglas', 'fuentes', 'ejecuciones'
+    'indicadores', 'reglas', 'fuentes', 'ejecuciones'
   ] loop
     execute format(
       'create policy %I on public.%I for select to authenticated using (empresa_id = public.empresa_actual())',
@@ -293,6 +293,13 @@ begin
   end loop;
 end;
 $$;
+
+create policy valores_indicador_select_empresa_y_globales
+on public.valores_indicador for select to authenticated
+using (
+  empresa_id = public.empresa_actual()
+  or indicador_codigo in ('TRM', 'IPC', 'TASA_BANREP')
+);
 
 revoke all on public.empresas, public.perfiles, public.alertas, public.indicadores,
   public.valores_indicador, public.reglas, public.fuentes, public.ejecuciones

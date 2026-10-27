@@ -1,6 +1,8 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { calcularPuntaje } from './puntaje';
 
+const INDICADORES_GLOBALES = ['TRM', 'IPC', 'TASA_BANREP'];
+
 function requireEmpresa(empresaId) {
   if (!empresaId) throw new Error('No se encontró una empresa activa para esta sesión.');
   if (!isSupabaseConfigured || !supabase) {
@@ -17,12 +19,17 @@ export async function getConexionStatus(empresaId) {
 
   const tablas = ['alertas', 'indicadores', 'valores_indicador', 'reglas', 'fuentes', 'ejecuciones'];
   const resultados = await Promise.all(
-    tablas.map((tabla) =>
-      supabase
+    tablas.map((tabla) => {
+      const consulta = supabase
         .from(tabla)
-        .select('*', { count: 'exact', head: true })
-        .eq('empresa_id', empresaId)
-    )
+        .select('*', { count: 'exact', head: true });
+
+      return tabla === 'valores_indicador'
+        ? consulta.or(
+            `empresa_id.eq.${empresaId},indicador_codigo.in.(${INDICADORES_GLOBALES.join(',')})`
+          )
+        : consulta.eq('empresa_id', empresaId);
+    })
   );
 
   const fallo = resultados.find((resultado) => resultado.error)?.error;
@@ -110,7 +117,7 @@ export async function getValoresIndicadores(empresaId) {
   const { data, error } = await supabase
     .from('valores_indicador')
     .select('*')
-    .eq('empresa_id', empresaId)
+    .or(`empresa_id.eq.${empresaId},indicador_codigo.in.(${INDICADORES_GLOBALES.join(',')})`)
     .order('fecha', { ascending: false });
 
   throwIfError(error, 'No se pudieron consultar los indicadores');

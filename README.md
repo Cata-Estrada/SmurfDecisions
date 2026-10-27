@@ -11,7 +11,7 @@ El sistema monitorea variables críticas nacionales (desastres climáticos como 
 
 1. **Frontend:** React + Vite + Tailwind CSS + React Router + Lucide Icons.
 2. **Autenticación y datos:** **Supabase Auth + PostgreSQL**. Supabase es obligatorio para usar el dashboard; no se simulan sesiones ni se sirven datos locales cuando la base de datos falla.
-3. **Aislamiento:** cada fila empresarial tiene `empresa_id`; RLS la compara con la membresía activa del usuario. Los roles se leen desde `perfiles`, no desde metadatos editables en el navegador.
+3. **Aislamiento:** RLS compara los datos empresariales con la membresía activa del usuario. TRM, IPC y Tasa BanRep son indicadores macroeconómicos globales, visibles para cualquier usuario autenticado; los demás datos permanecen aislados por `empresa_id`. Los roles se leen desde `perfiles`, no desde metadatos editables en el navegador.
 4. **Automatización:** Flujos programados en **n8n Cloud** con **Google Gemini Flash** para clasificar noticias RSS y consultar datos abiertos de la TRM.
 5. **Lógica de decisión:** escala de impacto en `src/lib/puntaje.js`; las reglas empresariales se consultan desde Supabase.
 
@@ -25,6 +25,8 @@ SmurfDecisions/
 │   ├── Documento maestro de definición del aplicativo.md
 │   └── Análisis PESTEL – Smurfit Westrock Colombia.md
 ├── supabase/
+│   ├── functions/
+│   │   └── ejecutar-flujo/  # Edge Function segura para disparar los flujos
 │   └── schema.sql           # Tablas, membresías, roles y políticas RLS multiempresa
 ├── n8n/
 │   ├── flujo_1_indicadores_trm.json
@@ -69,11 +71,11 @@ npm install
 
 ### 2. Configuración de Base de Datos (Supabase)
 1. Entra a tu proyecto en Supabase &rarr; **SQL Editor**.
-2. Haz una copia de seguridad y revisa `supabase/schema.sql` antes de ejecutarlo en **SQL Editor**. Es una migración aditiva para las tablas empresariales ya existentes: no reconstruye sus claves o columnas ni elimina datos o empresas. Crea las tablas `empresas` y `perfiles` si faltan, añade `empresa_id`, y reemplaza las políticas RLS de las tablas empresariales para impedir que políticas antiguas más permisivas mantengan acceso cruzado.
+2. Haz una copia de seguridad y revisa `supabase/schema.sql` antes de ejecutarlo en **SQL Editor**. Es una migración aditiva para las tablas empresariales ya existentes: no reconstruye sus claves o columnas ni elimina datos o empresas. Crea las tablas `empresas` y `perfiles` si faltan, añade `empresa_id`, y reemplaza las políticas RLS de las tablas empresariales para impedir que políticas antiguas más permisivas mantengan acceso cruzado. La única excepción global son los valores de TRM, IPC y Tasa BanRep, que cualquier usuario autenticado puede consultar.
 
 La migración asigna las alertas cuyo campo `empresa` identifica claramente a Smurfit o AMUCC. Por confirmación, también asigna a Smurfit las filas heredadas sin etiqueta de empresa (incluidas las tablas que no tenían ese campo). Las alertas etiquetadas con organizaciones retiradas se conservan sin reasignar y quedan ocultas por RLS hasta que un administrador las revise. Las filas de empresas retiradas y sus perfiles se conservan, pero esas empresas quedan desactivadas y sin acceso mediante RLS. La migración importa las membresías de `app_metadata` solo cuando reconoce la empresa y uno de los tres roles; puedes asignar o corregirlas con la función administrativa descrita abajo. `perfiles` será la fuente de verdad para la app y la función administrativa también sincroniza los campos heredados `app_metadata.empresa` y `app_metadata.rol`.
 
-Las tablas preexistentes conservan sus tipos de clave y columnas; la migración no intenta convertir, por ejemplo, `fuentes.id` ni añadir claves primarias que ya tengan otra forma. Antes de ejecutarla, confirma que las columnas de negocio usadas por la aplicación existan en el esquema actual. La migración detiene su ejecución si falta una de las seis tablas empresariales esperadas. Cada tabla requiere un `empresa_id` válido para las nuevas inserciones: no hay asignación automática a Smurfit. RLS impide lecturas entre organizaciones incluso si se modifica una ruta o un parámetro del cliente. Solo Analista/Gerente pueden editar alertas y únicamente Gerente puede actualizar decisiones.
+Las tablas preexistentes conservan sus tipos de clave y columnas; la migración no intenta convertir, por ejemplo, `fuentes.id` ni añadir claves primarias que ya tengan otra forma. Antes de ejecutarla, confirma que las columnas de negocio usadas por la aplicación existan en el esquema actual. La migración detiene su ejecución si falta una de las seis tablas empresariales esperadas. Cada tabla requiere un `empresa_id` válido para las nuevas inserciones: no hay asignación automática a Smurfit. RLS impide lecturas entre organizaciones incluso si se modifica una ruta o un parámetro del cliente, salvo para los códigos macroeconómicos globales `TRM`, `IPC` y `TASA_BANREP`. Solo Analista/Gerente pueden editar alertas y únicamente Gerente puede actualizar decisiones.
 
 ### 3. Creación de cuentas y asignación de roles
 1. Crea las cuentas de prueba en **Authentication → Users** de Supabase: tres para Smurfit y una para AMUCC. Configura sus contraseñas allí y confirma los correos según la política del proyecto.
@@ -91,18 +93,25 @@ Edita el archivo local `.env` en la raíz del proyecto:
 ```env
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu-anon-public-key
-
-# Webhook de n8n Cloud (solo servidor local; no usar prefijo VITE_)
-N8N_WEBHOOK_URL=
-N8N_WEBHOOK_KEY=
 ```
 Usa únicamente la clave pública `anon`/publishable en la aplicación; nunca pongas la clave `service_role` en variables `VITE_`.
 
-La URL y la clave de n8n se leen solo desde el servidor local de Vite y no se envían al navegador. Si ya habías guardado esos valores como `VITE_N8N_WEBHOOK_URL` y `VITE_N8N_WEBHOOK_KEY`, renómbralos en `.env` a `N8N_WEBHOOK_URL` y `N8N_WEBHOOK_KEY`, sin cambiar los valores. Como las variables con prefijo `VITE_` pueden exponerse al cliente, genera una clave nueva en n8n antes de usar este botón y actualiza el valor local.
+En Windows, abre una terminal PowerShell en la carpeta raíz del repositorio. La primera vez, instala el CLI como dependencia de desarrollo e inicializa el proyecto (esto crea `supabase/config.toml`):
+```bash
+npm install --save-dev supabase
+npx supabase init
+npx supabase login
+npx supabase link --project-ref TU_PROJECT_REF
+```
+Obtén `TU_PROJECT_REF` de la URL del dashboard de Supabase: `https://supabase.com/dashboard/project/TU_PROJECT_REF`. Luego configura los secretos y despliega la función al proyecto enlazado:
+```bash
+npx supabase secrets set N8N_WEBHOOK_URL=https://tu-instancia-n8n/webhook/tu-webhook N8N_WEBHOOK_KEY=tu-clave-segura
+npx supabase functions deploy ejecutar-flujo
+```
+Si ya instalaste e inicializaste el CLI, no repitas esos pasos iniciales; basta con enlazar el proyecto correcto y desplegar.
+La función usa `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` del entorno administrado por Supabase; no copies la clave `service_role` a `.env` ni al navegador.
 
-El botón envía una solicitud `POST` con respuesta inmediata y los campos `requestedAt` y `empresaId`. El relay valida el token de Supabase y exige el rol Gerente antes de llamar a n8n; `empresaId` sale del perfil autenticado, no de un parámetro libre del navegador. Configura el nodo **Webhook** con método `POST`, respuesta **Immediately** y autenticación **Header Auth** con encabezado `X-API-Key`; usa la misma clave de `N8N_WEBHOOK_KEY`. Conserva `empresaId` por las ramas y asígnalo a `empresa_id` en cada fila insertada en `alertas`, `indicadores`, `valores_indicador`, `reglas`, `fuentes` y `ejecuciones`. La base rechaza las inserciones que no indiquen explícitamente `empresa_id`; no clasifica esos registros por defecto como Smurfit. Cada rama debe insertar su ejecución con `flujo` exactamente igual a `indicadores`, `noticias` o `recomendaciones`. El polling del navegador también filtra por la empresa autenticada. Activa el webhook y configura `N8N_WEBHOOK_URL` con su **Production URL** (no la Test URL). El botón bloquea ejecuciones simultáneas mientras espera y, al terminar, refresca el historial desde Supabase.
-
-Reinicia Vite después de editar `.env`. Este relay existe únicamente en `npm run dev`, escucha solicitudes locales y no está incluido en el build de producción.
+El botón invoca `ejecutar-flujo` con el JWT de Supabase y `flujo: "noticias"`. La función valida que el flujo sea uno de `indicadores`, `noticias` o `recomendaciones`, obtiene `empresa_id` del perfil activo del usuario y solo permite el rol Gerente; ignora cualquier empresa indicada por el navegador. Para `noticias`, rechaza nuevas solicitudes si la empresa ya tiene una ejecución iniciada en los últimos 10 minutos. Envía a n8n `empresa_id` (y `empresaId` para compatibilidad con el flujo existente), `flujo` y `requestedAt`. Configura el nodo **Webhook** con método `POST`, respuesta **Immediately** y autenticación **Header Auth** con encabezado `X-API-Key`; usa la misma clave de `N8N_WEBHOOK_KEY`. Conserva `empresa_id` por las ramas y asígnalo en cada fila insertada en `alertas`, `indicadores`, `valores_indicador`, `reglas`, `fuentes` y `ejecuciones`. Cada rama debe insertar su ejecución con `flujo` exactamente igual a `indicadores`, `noticias` o `recomendaciones`. El polling del navegador filtra por empresa autenticada. Activa el webhook y usa su **Production URL** (no la Test URL). Al finalizar, el botón refresca el historial desde Supabase.
 
 ### 5. Ejecución en modo desarrollo
 ```bash
