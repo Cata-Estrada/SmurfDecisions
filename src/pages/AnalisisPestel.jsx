@@ -11,21 +11,12 @@ import {
   Building
 } from 'lucide-react';
 import { getAlertas } from '../lib/dataService';
+import { useAuth } from '../lib/authContext';
 import { FACTORES } from '../lib/catalogos';
 import { formatearFechaPublicacion } from '../lib/fechas';
 import { calcularPuntaje, normalizarValorEscala } from '../lib/puntaje';
 import NivelBadge from '../components/NivelBadge';
 import OrigenBadge from '../components/OrigenBadge';
-
-// Tendencias basales documentadas en el análisis PESTEL oficial (Octubre 2026)
-const TENDENCIAS_BASE = {
-  Político: { tendencia: 'sube', explicacion: 'Paro nacional de noviembre convocado y arancel de 12,5% de EE.UU.' },
-  Económico: { tendencia: 'sube', explicacion: 'Alzas en energía, inflación acumulada de 6,29% y tasa BanRep en 12,25%.' },
-  Social: { tendencia: 'estable', explicacion: 'Menor poder adquisitivo compensado por expansión de e-commerce y reciclaje.' },
-  Tecnológico: { tendencia: 'sube', explicacion: 'Aceleración de IA y automatización para absorber sobrecostos de nómina.' },
-  Ecológico: { tendencia: 'sube', explicacion: 'El Niño con intensidad fuerte a muy fuerte; sequía y pico de incendios.' },
-  Legal: { tendencia: 'sube', explicacion: 'Jornada reducida a 42h, recargos dominicales al 90% y reforma tributaria.' }
-};
 
 const ESTILOS_FACTOR = {
   Político: { inicial: 'P', color: '#102A56', activo: 'border-blue-500 ring-2 ring-blue-500/20' },
@@ -37,19 +28,28 @@ const ESTILOS_FACTOR = {
 };
 
 export default function AnalisisPestel() {
+  const { empresa, empresaId, sector } = useAuth();
   const [alertas, setAlertas] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
   const [factorActivo, setFactorActivo] = useState('Ecológico'); // Factor de mayor riesgo inicial
 
   useEffect(() => {
     async function cargar() {
       setCargando(true);
-      const { data } = await getAlertas();
-      setAlertas(data || []);
-      setCargando(false);
+      setError('');
+      try {
+        const { data } = await getAlertas(empresaId);
+        setAlertas(data);
+      } catch (loadError) {
+        setError(loadError.message);
+        setAlertas([]);
+      } finally {
+        setCargando(false);
+      }
     }
     cargar();
-  }, []);
+  }, [empresaId]);
 
   // Calcular métricas por factor
   const metricasPorFactor = FACTORES.map((factor) => {
@@ -64,15 +64,32 @@ export default function AnalisisPestel() {
     if (maxPuntaje >= 15) nivel = 'Alto';
     else if (maxPuntaje >= 8) nivel = 'Medio';
 
-    const infoTendencia = TENDENCIAS_BASE[factor] || { tendencia: 'estable', explicacion: '' };
+    const ordenadasPorFecha = [...alertasDelFactor].sort(
+      (a, b) => new Date(b.fecha_publicacion).getTime() - new Date(a.fecha_publicacion).getTime()
+    );
+    const mitad = Math.ceil(ordenadasPorFecha.length / 2);
+    const recientes = ordenadasPorFecha.slice(0, mitad);
+    const anteriores = ordenadasPorFecha.slice(mitad);
+    const promedio = (items) => items.length
+      ? items.reduce((suma, alerta) => suma + Number(alerta.puntaje || 0), 0) / items.length
+      : 0;
+    const diferencia = promedio(recientes) - promedio(anteriores);
+    const tendencia = anteriores.length === 0 || Math.abs(diferencia) < 0.5
+      ? 'estable'
+      : diferencia > 0 ? 'sube' : 'baja';
+    const explicacionTendencia = !alertasDelFactor.length
+      ? 'No hay alertas validadas de este factor para calcular una tendencia.'
+      : anteriores.length === 0
+      ? `Hay ${alertasDelFactor.length} alerta(s) registrada(s); se requieren más registros para comparar la evolución.`
+      : `El puntaje promedio de las ${recientes.length} alertas más recientes es ${promedio(recientes).toFixed(1)}, frente a ${promedio(anteriores).toFixed(1)} en las anteriores.`;
 
     return {
       factor,
       total: alertasDelFactor.length,
       maxPuntaje,
       nivel,
-      tendencia: infoTendencia.tendencia,
-      explicacionTendencia: infoTendencia.explicacion,
+      tendencia,
+      explicacionTendencia,
       alertas: alertasDelFactor
     };
   });
@@ -80,6 +97,14 @@ export default function AnalisisPestel() {
   const datosFactorSeleccionado = metricasPorFactor.find(
     (m) => m.factor === factorActivo
   ) || metricasPorFactor[0];
+
+  if (cargando) {
+    return <div className="p-12 text-center text-sm text-slate-500">Cargando análisis de la empresa…</div>;
+  }
+
+  if (error) {
+    return <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>;
+  }
 
   const renderIconoTendencia = (tendencia) => {
     if (tendencia === 'sube') {
@@ -114,7 +139,7 @@ export default function AnalisisPestel() {
           Matriz de Análisis PESTEL
         </h2>
         <p className="text-xs text-slate-500 mt-1">
-          Estructura del entorno macro y micro para Smurfit Westrock Colombia (cadena bosque &rarr; planta Yumbo &rarr; empaque).
+          Estructura del entorno macro y micro para <strong>{empresa}</strong> &bull; Sector: {sector}.
         </p>
       </div>
 
@@ -235,7 +260,7 @@ export default function AnalisisPestel() {
                       </p>
 
                       <div className="mt-3 bg-slate-50 p-3 rounded border border-slate-100 text-xs">
-                        <span className="font-semibold text-slate-800">Impacto inferido en Smurfit: </span>
+                        <span className="font-semibold text-slate-800">Impacto inferido en {empresa}: </span>
                         <span className="text-slate-600">{alerta.explicacion}</span>
                       </div>
 

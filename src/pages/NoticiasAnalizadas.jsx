@@ -18,14 +18,17 @@ import { getAlertas, actualizarAlerta } from '../lib/dataService';
 import { FACTORES, AREAS, ESTADOS_ALERTA, TIPOS_EVENTO } from '../lib/catalogos';
 import { formatearFechaPublicacion } from '../lib/fechas';
 import { calcularPuntaje, normalizarValorEscala } from '../lib/puntaje';
+import { useAuth } from '../lib/authContext';
 import NivelBadge from '../components/NivelBadge';
 import OrigenBadge from '../components/OrigenBadge';
 
 export default function NoticiasAnalizadas() {
+  const { empresa, empresaId, permisos } = useAuth();
   const [alertas, setAlertas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [alertaSeleccionada, setAlertaSeleccionada] = useState(null);
+  const [errorCarga, setErrorCarga] = useState('');
 
   // Estados de filtros
   const [filtroTexto, setFiltroTexto] = useState('');
@@ -47,17 +50,27 @@ export default function NoticiasAnalizadas() {
 
   async function cargarAlertas() {
     setCargando(true);
-    const { data } = await getAlertas();
-    setAlertas(data || []);
-    if (data && data.length > 0 && !alertaSeleccionada) {
-      seleccionarAlerta(data[0]);
+    setErrorCarga('');
+    try {
+      const { data } = await getAlertas(empresaId);
+      setAlertas(data);
+      if (data.length > 0) {
+        seleccionarAlerta(data[0]);
+      } else {
+        setAlertaSeleccionada(null);
+      }
+    } catch (error) {
+      setErrorCarga(error.message);
+      setAlertas([]);
+      setAlertaSeleccionada(null);
+    } finally {
+      setCargando(false);
     }
-    setCargando(false);
   }
 
   useEffect(() => {
     cargarAlertas();
-  }, []);
+  }, [empresaId]);
 
   function seleccionarAlerta(alerta) {
     setAlertaSeleccionada(alerta);
@@ -118,47 +131,39 @@ export default function NoticiasAnalizadas() {
       estado: formEdicion.estado
     };
 
-    const res = await actualizarAlerta(alertaSeleccionada.id, campos);
-    if (res.data) {
+    try {
+      const res = await actualizarAlerta(alertaSeleccionada.id, empresaId, campos);
       setAlertas((prev) =>
         prev.map((a) => (a.id === res.data.id ? res.data : a))
       );
       setAlertaSeleccionada(res.data);
-      if (res.source === 'supabase') {
-        setMensajePersistencia({ tipo: 'success', texto: 'Cambio guardado y sincronizado en la nube (Supabase).' });
-      } else {
-        setMensajePersistencia({
-          tipo: 'warning',
-          texto: res.error || 'Guardado localmente. En Supabase RLS bloqueó la actualización de la tabla alertas.'
-        });
-      }
+      setMensajePersistencia({ tipo: 'success', texto: 'Cambio guardado en la base de datos.' });
+    } catch (error) {
+      setMensajePersistencia({ tipo: 'warning', texto: error.message });
+    } finally {
+      setGuardando(false);
     }
-    setGuardando(false);
   }
 
   async function handleCambiarEstadoRapido(nuevoEstado) {
     if (!alertaSeleccionada) return;
     setGuardando(true);
     setMensajePersistencia(null);
-    const res = await actualizarAlerta(alertaSeleccionada.id, {
-      estado: nuevoEstado
-    });
-    if (res.data) {
+    try {
+      const res = await actualizarAlerta(alertaSeleccionada.id, empresaId, {
+        estado: nuevoEstado
+      });
       setAlertas((prev) =>
         prev.map((a) => (a.id === res.data.id ? res.data : a))
       );
       setAlertaSeleccionada(res.data);
       setFormEdicion((prev) => ({ ...prev, estado: nuevoEstado }));
-      if (res.source === 'supabase') {
-        setMensajePersistencia({ tipo: 'success', texto: `Estado actualizado a "${nuevoEstado}" en Supabase.` });
-      } else {
-        setMensajePersistencia({
-          tipo: 'warning',
-          texto: res.error || `Estado actualizado a "${nuevoEstado}" localmente. Supabase bloqueó la escritura por RLS.`
-        });
-      }
+      setMensajePersistencia({ tipo: 'success', texto: `Estado actualizado a "${nuevoEstado}" en la base de datos.` });
+    } catch (error) {
+      setMensajePersistencia({ tipo: 'warning', texto: error.message });
+    } finally {
+      setGuardando(false);
     }
-    setGuardando(false);
   }
 
   return (
@@ -181,6 +186,12 @@ export default function NoticiasAnalizadas() {
           Refrescar datos
         </button>
       </div>
+
+      {errorCarga && (
+        <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          {errorCarga}
+        </div>
+      )}
 
       {/* Barra de Filtros Multifactor */}
       <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm space-y-3">
@@ -362,7 +373,7 @@ export default function NoticiasAnalizadas() {
                 </div>
 
                 <div>
-                  <span className="font-semibold text-slate-700">Impacto inferido en Smurfit:</span>
+                  <span className="font-semibold text-slate-700">Impacto inferido en {empresa}:</span>
                   <p className="text-slate-600 mt-1 leading-relaxed bg-slate-50 p-2.5 rounded border border-slate-100">
                     {alertaSeleccionada.explicacion}
                   </p>
@@ -396,12 +407,28 @@ export default function NoticiasAnalizadas() {
                 )}
               </div>
 
-              {/* Panel de Ajuste y Reclasificación (Analista) */}
+              {/* Panel de Ajuste y Reclasificación (Analista / Gerente) */}
               <div className="pt-4 border-t border-slate-200 space-y-4">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                  <Sliders className="w-3.5 h-3.5 text-blue-600" />
-                  Ajuste de Probabilidad, Impacto y Clasificación
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <Sliders className="w-3.5 h-3.5 text-blue-600" />
+                    Ajuste de Probabilidad, Impacto y Clasificación
+                  </div>
+                  {!permisos.puedeEditarRiesgos && (
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                      Solo Lectura
+                    </span>
+                  )}
                 </div>
+
+                {!permisos.puedeEditarRiesgos && (
+                  <div className="p-3 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-700 flex items-start gap-2">
+                    <ShieldAlert className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Perfil de Consulta:</strong> Como <em>Consultor</em> no tienes permisos de edición. Requiere rol de <strong>Analista</strong> o <strong>Gerente</strong> para recalibrar o validar riesgos.
+                    </span>
+                  </div>
+                )}
 
                 {/* Sliders de Probabilidad e Impacto */}
                 <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
@@ -538,8 +565,9 @@ export default function NoticiasAnalizadas() {
                 {/* Botón Guardar Ajustes */}
                 <button
                   onClick={handleGuardarAjustes}
-                  disabled={guardando || !calificacionCompleta}
-                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded text-xs font-semibold hover:bg-slate-800 transition-colors disabled:opacity-50"
+                  disabled={guardando || !calificacionCompleta || !permisos.puedeEditarRiesgos}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded text-xs font-semibold hover:bg-slate-800 transition-colors disabled:opacity-40"
+                  title={!permisos.puedeEditarRiesgos ? 'Requiere rol de Analista o Gerente' : ''}
                 >
                   <Save className="w-3.5 h-3.5" />
                   {guardando ? 'Guardando cambios...' : 'Guardar Reclasificación y Puntaje'}
@@ -549,16 +577,18 @@ export default function NoticiasAnalizadas() {
                 <div className="pt-2 border-t border-slate-100 flex gap-2">
                   <button
                     onClick={() => handleCambiarEstadoRapido('validada')}
-                    disabled={guardando || alertaSeleccionada.estado === 'validada'}
+                    disabled={guardando || alertaSeleccionada.estado === 'validada' || !permisos.puedeEditarRiesgos}
                     className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 text-white text-xs font-semibold rounded hover:bg-emerald-700 transition-colors disabled:opacity-40"
+                    title={!permisos.puedeEditarRiesgos ? 'Requiere rol de Analista o Gerente' : ''}
                   >
                     <CheckCircle className="w-3.5 h-3.5" />
                     Validar Alerta
                   </button>
                   <button
                     onClick={() => handleCambiarEstadoRapido('descartada')}
-                    disabled={guardando || alertaSeleccionada.estado === 'descartada'}
+                    disabled={guardando || alertaSeleccionada.estado === 'descartada' || !permisos.puedeEditarRiesgos}
                     className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 bg-slate-200 text-slate-700 text-xs font-semibold rounded hover:bg-slate-300 transition-colors disabled:opacity-40"
+                    title={!permisos.puedeEditarRiesgos ? 'Requiere rol de Analista o Gerente' : ''}
                   >
                     <XCircle className="w-3.5 h-3.5" />
                     Descartar

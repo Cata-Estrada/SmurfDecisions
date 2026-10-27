@@ -14,32 +14,42 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { getAlertas, getReglas, actualizarDecisionAlerta } from '../lib/dataService';
-import { REGLAS_RECOMENDADOR, REGLA_POR_DEFECTO } from '../lib/catalogos';
+import { useAuth } from '../lib/authContext';
 import { formatearFechaPublicacion } from '../lib/fechas';
 import NivelBadge from '../components/NivelBadge';
 import OrigenBadge from '../components/OrigenBadge';
 
 export default function Recomendador() {
+  const { empresaId, rol, permisos } = useAuth();
   const [alertas, setAlertas] = useState([]);
-  const [reglas, setReglas] = useState(REGLAS_RECOMENDADOR);
+  const [reglas, setReglas] = useState({});
   const [cargando, setCargando] = useState(true);
   const [procesandoId, setProcesandoId] = useState(null);
   const [filtroDecision, setFiltroDecision] = useState('todas'); // todas, pendiente, aceptada, descartada
+  const [error, setError] = useState('');
 
   async function cargarDatos() {
     setCargando(true);
-    const [resAlertas, resReglas] = await Promise.all([
-      getAlertas(),
-      getReglas()
-    ]);
-    setAlertas(resAlertas.data || []);
-    if (resReglas?.data) setReglas(resReglas.data);
-    setCargando(false);
+    setError('');
+    try {
+      const [resAlertas, resReglas] = await Promise.all([
+        getAlertas(empresaId),
+        getReglas(empresaId)
+      ]);
+      setAlertas(resAlertas.data);
+      setReglas(resReglas.data);
+    } catch (loadError) {
+      setError(loadError.message);
+      setAlertas([]);
+      setReglas({});
+    } finally {
+      setCargando(false);
+    }
   }
 
   useEffect(() => {
     cargarDatos();
-  }, []);
+  }, [empresaId]);
 
   // El recomendador procesa SOLO alertas validadas
   const alertasValidadas = alertas.filter((a) => a.estado === 'validada');
@@ -52,13 +62,16 @@ export default function Recomendador() {
 
   async function handleCambiarDecision(id, nuevaDecision) {
     setProcesandoId(id);
-    const res = await actualizarDecisionAlerta(id, nuevaDecision);
-    if (res.data) {
+    try {
+      const res = await actualizarDecisionAlerta(id, empresaId, nuevaDecision);
       setAlertas((prev) =>
         prev.map((a) => (a.id === id ? { ...a, decision: nuevaDecision } : a))
       );
+    } catch (updateError) {
+      setError(updateError.message);
+    } finally {
+      setProcesandoId(null);
     }
-    setProcesandoId(null);
   }
 
   return (
@@ -78,6 +91,12 @@ export default function Recomendador() {
             Convierte alertas validadas en acciones trazables mediante reglas determinísticas del catálogo.
           </p>
         </div>
+
+        {error && (
+          <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            {error}
+          </div>
+        )}
 
         {/* Filtros de Decisión */}
         <div className="flex items-center gap-2">
@@ -102,6 +121,21 @@ export default function Recomendador() {
         </div>
       </div>
 
+      {/* Banner de Control de Roles y Segregación de Funciones */}
+      {!permisos.puedeAprobarDecisiones && (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-700">
+          <div className="flex items-center gap-2.5">
+            <ShieldAlert className="w-4 h-4 text-slate-500 shrink-0" />
+            <span>
+              <strong>Modo de Consulta Activo (Rol: {rol}):</strong> Puedes explorar las alertas y recomendaciones generadas, pero la aprobación y descarte de decisiones requiere el rol de <strong>Gerente (Tomador de Decisiones)</strong>.
+            </span>
+          </div>
+          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-700 border border-slate-300 shrink-0 text-center">
+            Solo Consulta
+          </span>
+        </div>
+      )}
+
       {/* Lista de Recomendaciones */}
       {cargando ? (
         <div className="p-12 text-center text-xs text-slate-500">
@@ -115,7 +149,7 @@ export default function Recomendador() {
         <div className="grid grid-cols-1 gap-5">
           {alertasFiltradas.map((alerta) => {
             // Regla asociada por tipo_evento
-            const regla = reglas[alerta.tipo_evento] || REGLAS_RECOMENDADOR[alerta.tipo_evento] || REGLA_POR_DEFECTO;
+            const regla = reglas[alerta.tipo_evento];
             const esTasaCambio = alerta.tipo_evento === 'tasa_cambio';
             const estaProcesando = procesandoId === alerta.id;
 
@@ -174,14 +208,14 @@ export default function Recomendador() {
                         Acción Sugerida (Determinística)
                       </div>
                       <p className="text-sm font-semibold text-slate-900 mt-2 leading-relaxed">
-                        {regla.accion}
+                        {regla?.accion || 'No hay una regla configurada para este tipo de evento en la base de datos.'}
                       </p>
                     </div>
 
                     <div className="mt-4 pt-3 border-t border-blue-200/60 flex items-center justify-between text-[11px]">
                       <span className="text-blue-800">Área Responsable:</span>
                       <strong className="text-slate-900 bg-white px-2 py-0.5 rounded border border-blue-200">
-                        {regla.area_responsable}
+                        {regla?.area_responsable || 'Sin asignar'}
                       </strong>
                     </div>
                   </div>
@@ -206,14 +240,14 @@ export default function Recomendador() {
 
                     <div className="bg-slate-50 p-3 rounded border border-slate-100 text-[11px]">
                       <span className="font-semibold text-slate-700">Supuestos de la regla: </span>
-                      <span className="text-slate-500">{regla.supuestos}</span>
+                      <span className="text-slate-500">{regla?.supuestos || 'No hay supuestos registrados para esta regla.'}</span>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
                       <span>Fuente: <strong className="text-slate-600">{alerta.fuente}</strong> ({formatearFechaPublicacion(alerta.fecha_publicacion)})</span>
                       {esTasaCambio && (
                         <Link
-                          to="/simulador"
+                          to="/dashboard/simulador"
                           className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold"
                         >
                           <Calculator className="w-3.5 h-3.5" />
@@ -233,16 +267,18 @@ export default function Recomendador() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleCambiarDecision(alerta.id, 'aceptada')}
-                      disabled={estaProcesando || alerta.decision === 'aceptada'}
+                      disabled={estaProcesando || alerta.decision === 'aceptada' || !permisos.puedeAprobarDecisiones}
                       className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded hover:bg-emerald-700 transition-colors disabled:opacity-40"
+                      title={!permisos.puedeAprobarDecisiones ? 'Requiere rol de Gerente (Tomador de Decisiones)' : ''}
                     >
                       <Check className="w-3.5 h-3.5" />
                       Aceptar Decisión
                     </button>
                     <button
                       onClick={() => handleCambiarDecision(alerta.id, 'descartada')}
-                      disabled={estaProcesando || alerta.decision === 'descartada'}
+                      disabled={estaProcesando || alerta.decision === 'descartada' || !permisos.puedeAprobarDecisiones}
                       className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-semibold rounded hover:bg-slate-300 transition-colors disabled:opacity-40"
+                      title={!permisos.puedeAprobarDecisiones ? 'Requiere rol de Gerente (Tomador de Decisiones)' : ''}
                     >
                       <XCircle className="w-3.5 h-3.5" />
                       Descartar
@@ -250,9 +286,9 @@ export default function Recomendador() {
                     {alerta.decision !== 'pendiente' && (
                       <button
                         onClick={() => handleCambiarDecision(alerta.id, 'pendiente')}
-                        disabled={estaProcesando}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-slate-500 hover:text-slate-700 text-xs transition-colors"
-                        title="Revertir a estado pendiente"
+                        disabled={estaProcesando || !permisos.puedeAprobarDecisiones}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-slate-500 hover:text-slate-700 text-xs transition-colors disabled:opacity-30"
+                        title={!permisos.puedeAprobarDecisiones ? 'Requiere rol de Gerente' : 'Revertir a estado pendiente'}
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         Reabrir

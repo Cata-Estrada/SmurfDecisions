@@ -35,7 +35,7 @@ Una aplicación que recoge información de fuentes externas de forma periódica,
 
 ### Alcance
 
-La aplicación cubre solo Colombia y una empresa de caso (Smurfit Westrock Colombia, antes Cartón de Colombia). Se desarrolla en dos días con apoyo de IA y se ejecuta en local, sin despliegue; por eso el alcance es un prototipo (sección 8).
+La aplicación cubre Colombia y dos organizaciones: Smurfit y la Asociación de Mujeres Caficultoras del Cauca (AMUCC). Cada usuario pertenece a una sola empresa y tiene un rol asignado en la base de datos. El entorno local es solo para desarrollo; autenticación y datos requieren Supabase.
 
 ### Valor diferencial
 
@@ -51,9 +51,9 @@ Las flechas indican de dónde toma datos cada módulo. El panel ejecutivo resume
 
 ### Qué se construirá
 
-- **Una aplicación web que se ejecuta en local**, en el equipo del proyecto y sin despliegue.
+- **Una aplicación web React** que puede ejecutarse localmente durante el desarrollo.
 - **Dos flujos de automatización en n8n cloud**, uno de indicadores y otro de noticias.
-- **Una base de datos en la nube** (Supabase) que comparten n8n y la aplicación. Como n8n cloud no puede escribir en un equipo local, la base de datos no puede ser local; la aplicación local la consulta por internet.
+- **Una base de datos en la nube** (Supabase) con aislamiento por empresa mediante políticas RLS. La aplicación consulta y modifica datos únicamente según la membresía autenticada.
 
 ### Cómo funciona
 
@@ -317,23 +317,27 @@ La aplicación se ejecuta en local y no se despliega. n8n escribe en la base de 
 | Automatización | n8n cloud | Programar, consultar, validar, clasificar, puntuar y escribir | Elegida por el equipo; no requiere servidor propio y corre aunque el equipo esté apagado |
 | Base de datos | Supabase (PostgreSQL), plan gratuito | Almacenar y compartir los datos | n8n cloud no puede escribir en una base local; Supabase tiene nodo nativo en n8n y una API lista para la aplicación |
 | Aplicación web | React con Vite y Tailwind CSS, ejecutada en local con npm run dev | Mostrar los seis módulos y registrar las validaciones | Es una combinación muy usada, lo que facilita generar el código con IA; no requiere despliegue |
-| Acceso a datos | Cliente de Supabase (supabase-js) con la clave pública | Leer y escribir las tablas sin servidor propio | Evita construir un backend en dos días; los datos son públicos y no hay información interna de la empresa |
+| Acceso a datos | Cliente de Supabase (supabase-js) con la clave pública y RLS | Leer y escribir exclusivamente las filas autorizadas al usuario | La política de base de datos se mantiene como control final, aunque el cliente altere rutas o parámetros |
 | IA | Modelo Flash de Google Gemini, con el nodo de Gemini de n8n | Clasificar y resumir noticias | Tiene capa gratuita (verificar los límites vigentes) y nodo nativo en n8n; si el equipo ya tiene una clave de la API de Claude, puede cambiar el nodo sin modificar el resto del flujo |
 
-La clave de servicio de Supabase y la clave de Gemini se guardan solo en las credenciales de n8n. La aplicación usa únicamente la clave pública de Supabase, en un archivo .env que no se sube a ningún repositorio. Las tablas del prototipo no usan inicio de sesión ni roles; es aceptable porque solo contienen datos públicos.
+La clave de servicio de Supabase y la clave de Gemini se guardan solo en las credenciales de n8n. La aplicación usa únicamente la clave pública de Supabase, en un archivo `.env` que no se sube al repositorio. Supabase Auth autentica usuarios; la tabla `perfiles` asigna empresa y rol, y las políticas RLS aplican esas restricciones en la base de datos.
+
+La migración `supabase/schema.sql` está diseñada para una base existente: conserva las estructuras y claves de las tablas empresariales, reemplaza sus políticas RLS y no borra registros ni empresas. Las alertas con una etiqueta reconocida se asignan a su empresa; por confirmación administrativa, las filas heredadas sin etiqueta se asignan a Smurfit. Las alertas etiquetadas con empresas retiradas se mantienen sin acceso hasta su revisión. Las nuevas inserciones deben indicar explícitamente `empresa_id`. Las membresías antiguas de `app_metadata` se importan solo si empresa y rol son válidos; `perfiles` es la fuente de verdad para la autorización de la aplicación.
 
 ### Modelo de datos
 
 | Tabla | Campos |
 | --- | --- |
-| fuentes | id, nombre, tipo (indicador o noticia), frecuencia\_horas |
-| indicadores | codigo (TRM, IPC, TASA\_BANREP), nombre, unidad |
-| valores\_indicador | id, indicador\_codigo, fecha, valor, fuente, capturado\_en; único por indicador y fecha |
-| alertas | id, titulo, resumen, enlace (único), fuente, fecha\_publicacion, factor, area, tipo\_evento, probabilidad, impacto, puntaje, nivel, prioritaria, estado, decision, origen (n8n o base), explicacion, creada\_en |
-| reglas | tipo\_evento (clave), accion, area\_responsable, supuestos |
-| ejecuciones | id, flujo, fuente, inicio, fin, estado (ok o error), registros\_nuevos, mensaje\_error |
+| perfiles | usuario autenticado, empresa\_id, rol y estado de la membresía |
+| empresas | id, nombre y sector de cada organización habilitada |
+| fuentes | empresa\_id, id, nombre, tipo (indicador o noticia), frecuencia\_horas |
+| indicadores | empresa\_id, codigo (TRM, IPC, TASA\_BANREP), nombre, unidad |
+| valores\_indicador | empresa\_id, id, indicador\_codigo, fecha, valor, fuente |
+| alertas | empresa\_id, id, titulo, resumen, fuente, fecha, factor, área, tipo, puntajes, estado y decisión |
+| reglas | empresa\_id, tipo\_evento, acción, área\_responsable y supuestos |
+| ejecuciones | empresa\_id, id, flujo, fuente, inicio, fin, estado, registros\_nuevos y mensaje\_error |
 
-El puntaje es probabilidad × impacto; el nivel es Alto de 15 a 25, Medio de 8 a 14 y Bajo de 1 a 7. Las recomendaciones no tienen tabla propia: la aplicación une cada alerta con su regla por tipo\_evento y guarda la decisión del usuario en la propia alerta. Los hallazgos del documento PESTEL se cargan como alertas con origen base y estado validada.
+El puntaje es probabilidad × impacto; el nivel es Alto de 15 a 25, Medio de 8 a 14 y Bajo de 1 a 7. Las recomendaciones no tienen tabla propia: la aplicación une cada alerta con su regla de la misma empresa por tipo\_evento y guarda la decisión en la propia alerta. Las políticas RLS limitan cada lectura y escritura a `empresa_id` obtenido de la membresía del usuario; el cliente no decide su empresa ni su rol.
 
 ## 7. Flujos de uso
 
@@ -380,8 +384,8 @@ El alcance es un prototipo que se ejecuta en un equipo local y se desarrolla en 
 | Seis módulos | Panel, noticias, análisis PESTEL, recomendador, simulador y centro de actualizaciones |
 | Flujo 1 | TRM diaria desde datos abiertos, con alerta por variación |
 | Flujo 2 | Cinco búsquedas RSS, clasificación con Gemini y alertas pendientes |
-| Base de datos | Seis tablas en Supabase con los datos semilla |
-| Datos semilla | Hallazgos del PESTEL como alertas «base», reglas, fuentes, IPC y tasa de referencia, y la TRM de las últimas semanas |
+| Base de datos | Tablas en Supabase con `empresa_id`, claves foráneas, perfiles y políticas RLS |
+| Membresías | Tres cuentas de prueba para Smurfit (Consultor, Analista, Gerente) y una cuenta Gerente para AMUCC, aprovisionadas en Supabase Auth |
 | Recomendador | Seis reglas más la opción «sin regla» |
 
 ### Guía de desarrollo en dos días
