@@ -1,5 +1,10 @@
+// ==============================================================================
+// SmurfDecisions · Layout Principal del Dashboard
+// Corrección: todos los hooks ANTES de cualquier return condicional
+// Guard de autenticación: redirige a /login si no hay sesión
+// ==============================================================================
 import React, { useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Newspaper,
@@ -7,79 +12,167 @@ import {
   Lightbulb,
   Calculator,
   RefreshCw,
-  Database,
   Building2,
-  AlertTriangle,
-  CheckCircle,
-  X
+  Menu,
+  X,
+  LogOut,
+  Database,
+  Loader2
 } from 'lucide-react';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { getConexionStatus } from '../lib/dataService';
+import { useAuth } from '../lib/authContext';
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Panel Ejecutivo', icon: LayoutDashboard },
-  { path: '/noticias', label: 'Noticias Analizadas', icon: Newspaper },
-  { path: '/pestel', label: 'Análisis PESTEL', icon: Compass },
-  { path: '/recomendador', label: 'Recomendador de Decisiones', icon: Lightbulb },
-  { path: '/simulador', label: 'Simulador Económico', icon: Calculator },
-  { path: '/actualizaciones', label: 'Centro de Actualizaciones', icon: RefreshCw },
+  { path: '/dashboard',               label: 'Panel Ejecutivo',   icon: LayoutDashboard, end: true },
+  { path: '/dashboard/noticias',      label: 'Noticias Analizadas', icon: Newspaper },
+  { path: '/dashboard/pestel',        label: 'Análisis PESTEL',   icon: Compass },
+  { path: '/dashboard/recomendador',  label: 'Recomendador',      icon: Lightbulb },
+  { path: '/dashboard/simulador',     label: 'Simulador Económico', icon: Calculator },
+  { path: '/dashboard/actualizaciones', label: 'Actualizaciones', icon: RefreshCw },
 ];
 
+const ROL_COLOR = {
+  gerente:   'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+  analista:  'bg-blue-500/20   text-blue-300   border border-blue-500/30',
+  consultor: 'bg-slate-500/20  text-slate-400  border border-slate-500/30',
+};
+
 export default function Layout() {
-  const [status, setStatus] = useState(null);
-  const [mostrarModalSql, setMostrarModalSql] = useState(false);
+  // ── Todos los hooks PRIMERO, sin excepción ──────────────────────────────────
+  const { user, empresa, empresaId, rol, sector, logout, estaAutenticado, loading } = useAuth();
+  const navigate = useNavigate();
+
+  const [status,          setStatus]          = useState(null);
+  const [sidebarOpen,     setSidebarOpen]     = useState(false);
+  const [logoutLoading,   setLogoutLoading]   = useState(false);
+  const [logoutError,     setLogoutError]     = useState('');
 
   useEffect(() => {
-    async function verificar() {
-      const res = await getConexionStatus();
-      setStatus(res);
+    let alive = true;
+    getConexionStatus(empresaId)
+      .then((res) => { if (alive) setStatus(res); })
+      .catch((error) => { if (alive) setStatus({ error: error.message }); });
+    return () => { alive = false; };
+  }, [empresaId]);
+
+  // ── Guard de autenticación ──────────────────────────────────────────────────
+  // Esperar a que cargue antes de decidir
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
+
+  // Sin sesión → login (DESPUÉS de todos los hooks)
+  if (!estaAutenticado) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
+  async function handleLogout() {
+    setLogoutLoading(true);
+    setLogoutError('');
+    try {
+      const result = await logout();
+      if (result.error) {
+        setLogoutError(result.error.message);
+        return;
+      }
+      navigate('/', { replace: true });
+    } catch (error) {
+      setLogoutError(error.message || 'No se pudo cerrar la sesión.');
+    } finally {
+      setLogoutLoading(false);
     }
-    verificar();
-  }, []);
+  }
+
+  function handleNavClick() {
+    setSidebarOpen(false);
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+  const iniciales = empresa.substring(0, 2).toUpperCase();
 
   return (
-    <div className="min-h-screen flex bg-slate-100 text-slate-800">
-      {/* Barra lateral de navegación (Desktop-first) */}
-      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 border-r border-slate-800">
-        {/* Encabezado institucional */}
-        <div className="p-5 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <img
-              src="https://cl-paris-media-hub.ecomm.cencosud.com/files/landing/institucional/dia-de-madre/paris-cajita.png"
-              alt="Smurfit Westrock"
-              className="w-9 h-9 rounded object-cover shadow-sm"
-            />
+    <div className="dashboard-shell">
+      {/* ── OVERLAY MÓVIL ── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ── SIDEBAR ── */}
+      <aside
+        className={`
+          dashboard-sidebar fixed inset-y-0 left-0 z-40 w-64
+          bg-slate-900 border-r border-white/5
+          transform transition-transform duration-300 ease-in-out
+          lg:relative lg:translate-x-0 lg:z-auto
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+      >
+        {/* Logo + botón cerrar (móvil) */}
+        <div className="flex items-center justify-between px-5 h-14 border-b border-white/5 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-[10px] text-white shadow-md">
+              SD
+            </div>
             <div>
-              <h1 className="text-sm font-bold text-white tracking-tight leading-none">
-                SmurfDecisions
-              </h1>
-              <p className="text-xs text-slate-400 mt-1">
-                Smurfit Westrock Colombia
+              <span className="font-bold text-white text-xs tracking-tight">
+                Smurf<span className="text-blue-400">Decisions</span>
+              </span>
+              <p className="text-[10px] text-blue-300/60 leading-none mt-0.5 hidden sm:block">
+                Risk &amp; Strategy Intelligence
               </p>
             </div>
           </div>
-          <div className="mt-3 text-[11px] text-slate-400 bg-slate-800/80 rounded px-2.5 py-1.5 border border-slate-700/60 leading-snug">
-            Inteligencia del entorno PESTEL &bull; Planta Yumbo
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden text-slate-500 hover:text-white transition-colors p-1"
+            aria-label="Cerrar menú"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Empresa activa */}
+        <div className="px-4 py-3 border-b border-white/5 shrink-0">
+          <div className="bg-slate-800/80 rounded-xl p-3 border border-white/5">
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Organización activa
+            </div>
+            <div className="font-bold text-white text-xs truncate flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="truncate">{empresa}</span>
+            </div>
+            <div className="text-[10px] text-slate-500 mt-0.5 truncate">{sector}</div>
           </div>
         </div>
 
-        {/* Menú de los 6 módulos */}
-        <nav className="flex-1 p-3 space-y-1">
-          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Módulos del Sistema
-          </div>
+        {/* Navegación */}
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+          <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 mt-1">
+            Módulos
+          </p>
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
-                end={item.path === '/'}
+                end={item.end}
+                onClick={handleNavClick}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-md text-xs font-medium transition-all ${
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
                     isActive
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-900/40'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   }`
                 }
               >
@@ -90,165 +183,94 @@ export default function Layout() {
           })}
         </nav>
 
-        {/* Estado de Supabase y pie de barra lateral */}
-        <div className="p-4 border-t border-slate-800 text-xs">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="flex items-center gap-1.5 text-[11px]">
-              <Database className="w-3.5 h-3.5" />
+        {/* Pie del sidebar */}
+        <div className="p-4 border-t border-white/5 shrink-0 space-y-3">
+          {/* Estado BD */}
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
+              <Database className="w-3 h-3" />
               Base de Datos
             </span>
             {status?.tieneFilas ? (
-              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Supabase ({status.conteos.alertas})
-              </span>
+              <span className="text-[10px] text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800 font-semibold">● Cloud</span>
+            ) : status?.error ? (
+              <span className="text-[10px] text-rose-300 bg-rose-950/80 px-2 py-0.5 rounded border border-rose-800 font-semibold">Error</span>
             ) : isSupabaseConfigured ? (
-              <button
-                onClick={() => setMostrarModalSql(true)}
-                className="inline-flex items-center gap-1 text-[10px] text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800 hover:bg-amber-900 transition-colors"
-                title="Revisar conexión, datos y permisos de Supabase."
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                Supabase (revisar)
-              </button>
+              <span className="text-[10px] text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800 font-semibold">Sin datos</span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-[10px] text-sky-400 bg-sky-950/80 px-2 py-0.5 rounded border border-sky-800">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                Modo Local
-              </span>
+              <span className="text-[10px] text-rose-300 bg-rose-950/80 px-2 py-0.5 rounded border border-rose-800 font-semibold">No configurada</span>
             )}
           </div>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            {status?.tieneFilas
-              ? 'Conectado a la nube. Cambios persisten en Supabase.'
-              : 'Mostrando datos locales de respaldo del análisis PESTEL.'}
-          </p>
+
+          {logoutError && <p role="alert" className="text-[11px] text-rose-300">{logoutError}</p>}
+
+          {/* Logout */}
+          <button
+            id="btn-cerrar-sesion"
+            onClick={handleLogout}
+            disabled={logoutLoading}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 rounded-lg transition-all disabled:opacity-60"
+          >
+            {logoutLoading
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <LogOut className="w-3.5 h-3.5" />
+            }
+            {logoutLoading ? 'Cerrando sesión...' : 'Cerrar sesión'}
+          </button>
         </div>
       </aside>
 
-      {/* Área de contenido principal */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Banner de Diagnóstico si Supabase tiene 0 filas o RLS activo */}
-        {isSupabaseConfigured && !status?.tieneFilas && (
-          <div className="bg-amber-50 border-b border-amber-200 px-8 py-2.5 flex items-center justify-between text-xs text-amber-900">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>
-                {status?.conectado ? (
-                  <>
-                    <strong>Conexión establecida con Supabase</strong>, pero la clave pública no ve filas en <code>alertas</code>. La aplicación está mostrando los <strong>27 hallazgos locales de respaldo</strong>; no se han insertado datos de ejemplo.
-                  </>
-                ) : (
-                  <>
-                    <strong>No se pudo confirmar la conexión con Supabase.</strong> {status?.mensaje || 'Revisa la URL, la clave pública y los permisos de lectura.'} La aplicación está mostrando los <strong>27 hallazgos locales de respaldo</strong>.
-                  </>
-                )}
+      {/* ── ÁREA PRINCIPAL ── */}
+      <div className="dashboard-content min-w-0">
+        {/* ── TOPBAR ── */}
+        <header className="flex-shrink-0 h-14 bg-slate-900/95 border-b border-white/5 px-4 sm:px-6 flex items-center gap-3">
+          {/* Hamburger */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden text-slate-400 hover:text-white transition-colors p-1 -ml-1"
+            aria-label="Abrir menú"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          {/* Empresa en topbar */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-blue-600/20 border border-blue-500/20 flex items-center justify-center text-blue-300 font-extrabold text-[10px] shrink-0">
+              {iniciales}
+            </div>
+            <div className="hidden sm:block min-w-0">
+              <span className="font-bold text-white text-sm truncate block">{empresa}</span>
+              <span className="text-[10px] text-slate-500 truncate block">
+                Inteligencia PESTEL · Toma de Decisiones
               </span>
             </div>
-            <button
-              onClick={() => setMostrarModalSql(true)}
-              className="ml-4 shrink-0 px-2.5 py-1 bg-amber-600 text-white rounded font-semibold text-[11px] hover:bg-amber-700 transition-colors"
-            >
-              Revisar conexión
-            </button>
           </div>
-        )}
 
-        {/* Cabecera superior institucional */}
-        <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0 shadow-sm">
-          <div className="flex items-center gap-3">
-            <Building2 className="w-5 h-5 text-slate-500" />
-            <div>
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Operación Integrada Smurfit Westrock Colombia
-              </span>
-              <div className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <span>Panel de Decisión Estratégica &bull; Horizonte 12 Meses</span>
-                {status?.tieneFilas ? (
-                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                    Datos en Vivo desde Supabase
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
-                    Datos Locales de Respaldo PESTEL
-                  </span>
-                )}
+          <div className="flex-1" />
+
+          {/* Perfil de usuario */}
+          <div className="flex items-center gap-2 bg-slate-800 border border-white/5 rounded-xl px-3 py-1.5">
+            <div className="w-7 h-7 rounded-lg bg-slate-700 text-white flex items-center justify-center text-xs font-bold shrink-0">
+              {user?.nombre ? user.nombre.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div className="hidden sm:block text-left">
+              <div className="text-xs font-bold text-white leading-tight truncate max-w-[110px]">
+                {user?.nombre || 'Usuario'}
+              </div>
+              <div className={`text-[9px] font-black uppercase px-1.5 py-0 rounded inline-block mt-0.5 ${ROL_COLOR[rol] || ROL_COLOR.consultor}`}>
+                {rol}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-xs text-slate-500">
-            <div className="hidden sm:flex items-center gap-2 border-r border-slate-200 pr-4">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Sistema Operativo (Octubre 2026)</span>
-            </div>
-            <span className="font-medium text-slate-700">Yumbo, Valle del Cauca</span>
-          </div>
         </header>
 
-        {/* Vista del módulo activo */}
-        <main className="flex-1 p-8 overflow-y-auto">
-          <div className="max-w-7xl mx-auto">
+        {/* ── CONTENIDO ── */}
+        <main className="dashboard-main">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
             <Outlet />
           </div>
         </main>
       </div>
-
-      {/* Guía de diagnóstico sin modificar el esquema o los permisos del proyecto */}
-      {mostrarModalSql && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full border border-slate-200 overflow-hidden">
-            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-                <Database className="w-4 h-4 text-blue-600" />
-                Diagnóstico de conexión a Supabase
-              </div>
-              <button
-                onClick={() => setMostrarModalSql(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 text-xs text-slate-700">
-              <p>
-                {status?.mensaje || 'No se ha podido determinar el estado de la conexión.'}
-              </p>
-
-              {status?.conteos && (
-                <div className="rounded border border-slate-200 bg-slate-50 p-3">
-                  <strong>Filas visibles para la clave pública:</strong>
-                  <ul className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-slate-600">
-                    {Object.entries(status.conteos).map(([tabla, cantidad]) => (
-                      <li key={tabla}><code>{tabla}</code>: {cantidad}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="space-y-1.5 text-slate-600 text-[11px]">
-                <div><strong>Verificaciones:</strong></div>
-                <ol className="list-decimal list-inside space-y-1">
-                  <li>Confirma que el archivo local <code>.env</code> tenga <code>VITE_SUPABASE_URL</code> y <code>VITE_SUPABASE_ANON_KEY</code>; reinicia <code>npm run dev</code> después de cambiarlas.</li>
-                  <li>Verifica que existan las tablas <code>alertas</code>, <code>indicadores</code>, <code>valores_indicador</code>, <code>reglas</code>, <code>fuentes</code> y <code>ejecuciones</code>.</li>
-                  <li>Si RLS está activo, revisa las políticas para las operaciones de lectura y actualización que necesita la app.</li>
-                  <li>En n8n, configura sus credenciales de Supabase y Gemini directamente en la instancia. Nunca uses la clave <code>service_role</code> en la app ni en variables <code>VITE_</code>.</li>
-                  <li>No ejecutes los scripts de esquema, semilla o permisos de este repositorio sobre una base personalizada sin revisar primero sus efectos.</li>
-                </ol>
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
-              <button
-                onClick={() => setMostrarModalSql(false)}
-                className="px-4 py-2 bg-slate-900 text-white rounded text-xs font-semibold hover:bg-slate-800"
-              >
-                Entendido
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

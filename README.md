@@ -1,7 +1,7 @@
-# SmurfDecisions - Panel de Inteligencia del Entorno PESTEL
-### Smurfit Westrock Colombia (Planta Yumbo, Valle del Cauca)
+# SmurfDecisions - Plataforma Multiempresa de Inteligencia PESTEL
+### Smurfit y Asociación de Mujeres Caficultoras del Cauca (AMUCC)
 
-SmurfDecisions es una plataforma web de inteligencia del entorno y apoyo a la toma de decisiones estratégicas para **Smurfit Westrock Colombia** (operación integrada desde plantaciones forestales hasta producción de papel, cartón corrugado y reciclaje).
+SmurfDecisions es una plataforma de inteligencia del entorno y apoyo a decisiones estratégicas para **Smurfit** y la **Asociación de Mujeres Caficultoras del Cauca (AMUCC)**. Cada cuenta recibe una sola empresa y un rol, asignados en la base de datos.
 
 El sistema monitorea variables críticas nacionales (desastres climáticos como El Niño, bloqueos de transporte, alzas en tarifas de energía, volatilidad de la TRM, reformas tributarias y laborales) y las traduce en decisiones operativas accionables con responsables asignados.
 
@@ -9,10 +9,11 @@ El sistema monitorea variables críticas nacionales (desastres climáticos como 
 
 ## 🏛 Arquitectura de la Solución
 
-1. **Frontend:** React + Vite + Tailwind CSS + React Router + Lucide Icons (JavaScript puro, interfaz institucional en español optimizada para pantallas de escritorio).
-2. **Base de Datos:** PostgreSQL en la nube mediante **Supabase** (sin backend propio).
-3. **Automatización:** Flujos programados en **n8n Cloud** con el modelo **Google Gemini Flash** para la lectura y clasificación de noticias en formato RSS y datos abiertos de la TRM.
-4. **Lógica de Decisión:** Catálogo de reglas determinísticas por `tipo_evento` en `src/lib/catalogos.js` y escala única de impacto en `src/lib/puntaje.js`.
+1. **Frontend:** React + Vite + Tailwind CSS + React Router + Lucide Icons.
+2. **Autenticación y datos:** **Supabase Auth + PostgreSQL**. Supabase es obligatorio para usar el dashboard; no se simulan sesiones ni se sirven datos locales cuando la base de datos falla.
+3. **Aislamiento:** RLS compara los datos empresariales con la membresía activa del usuario. TRM, IPC y Tasa BanRep son indicadores macroeconómicos globales, visibles para cualquier usuario autenticado; los demás datos permanecen aislados por `empresa_id`. Los roles se leen desde `perfiles`, no desde metadatos editables en el navegador.
+4. **Automatización:** Flujos programados en **n8n Cloud** con **Google Gemini Flash** para clasificar noticias RSS y consultar datos abiertos de la TRM.
+5. **Lógica de decisión:** escala de impacto en `src/lib/puntaje.js`; las reglas empresariales se consultan desde Supabase.
 
 ---
 
@@ -24,8 +25,9 @@ SmurfDecisions/
 │   ├── Documento maestro de definición del aplicativo.md
 │   └── Análisis PESTEL – Smurfit Westrock Colombia.md
 ├── supabase/
-│   ├── schema.sql           # DDL de las 6 tablas con índices y restricciones
-│   └── seed.sql             # Datos iniciales con los 27 hallazgos base del PESTEL
+│   ├── functions/
+│   │   └── ejecutar-flujo/  # Edge Function segura para disparar los flujos
+│   └── schema.sql           # Tablas, membresías, roles y políticas RLS multiempresa
 ├── n8n/
 │   ├── flujo_1_indicadores_trm.json
 │   ├── flujo_2_noticias_gemini.json
@@ -33,10 +35,9 @@ SmurfDecisions/
 ├── src/
 │   ├── components/          # Layout institucional, tarjetas e insignias
 │   ├── lib/
-│   │   ├── catalogos.js     # Factores, áreas, estados y reglas determinísticas
+│   │   ├── catalogos.js     # Factores, áreas y estados
 │   │   ├── puntaje.js       # Fórmula: Probabilidad x Impacto (1-25)
 │   │   ├── supabase.js      # Cliente de Supabase
-│   │   ├── datosIniciales.js# 27 hallazgos PESTEL y valores de referencia
 │   │   └── dataService.js   # Acceso y persistencia con recalculo en vivo
 │   ├── pages/               # Los 6 módulos del aplicativo
 │   │   ├── PanelEjecutivo.jsx
@@ -61,7 +62,7 @@ SmurfDecisions/
 
 ### Requisitos previos
 - Node.js (versión 18 o superior).
-- Cuenta gratuita en [Supabase](https://supabase.com/) (opcional para persistencia en la nube; el aplicativo cuenta con modo local autónomo con los 27 hallazgos base).
+- Proyecto de [Supabase](https://supabase.com/) configurado; el dashboard no tiene modo local ni sesiones de demostración simuladas.
 
 ### 1. Instalación de dependencias
 ```bash
@@ -70,30 +71,49 @@ npm install
 
 ### 2. Configuración de Base de Datos (Supabase)
 1. Entra a tu proyecto en Supabase &rarr; **SQL Editor**.
-2. Copia y ejecuta el contenido de `supabase/schema.sql`.
-3. Copia y ejecuta el contenido de `supabase/seed.sql`.
+2. Haz una copia de seguridad y revisa `supabase/schema.sql` antes de ejecutarlo en **SQL Editor**. Es una migración aditiva para las tablas empresariales ya existentes: no reconstruye sus claves o columnas ni elimina datos o empresas. Crea las tablas `empresas` y `perfiles` si faltan, añade `empresa_id`, y reemplaza las políticas RLS de las tablas empresariales para impedir que políticas antiguas más permisivas mantengan acceso cruzado. La única excepción global son los valores de TRM, IPC y Tasa BanRep, que cualquier usuario autenticado puede consultar.
 
-Si ya tienes un proyecto de Supabase con tablas o datos propios, no ejecutes estos scripts de ejemplo sin revisar sus cambios: el `seed.sql` carga datos PESTEL de muestra. La aplicación consulta las tablas `alertas`, `indicadores`, `valores_indicador`, `reglas`, `fuentes` y `ejecuciones`; usa las columnas disponibles en ellas.
+La migración asigna las alertas cuyo campo `empresa` identifica claramente a Smurfit o AMUCC. Por confirmación, también asigna a Smurfit las filas heredadas sin etiqueta de empresa (incluidas las tablas que no tenían ese campo). Las alertas etiquetadas con organizaciones retiradas se conservan sin reasignar y quedan ocultas por RLS hasta que un administrador las revise. Las filas de empresas retiradas y sus perfiles se conservan, pero esas empresas quedan desactivadas y sin acceso mediante RLS. La migración importa las membresías de `app_metadata` solo cuando reconoce la empresa y uno de los tres roles; puedes asignar o corregirlas con la función administrativa descrita abajo. `perfiles` será la fuente de verdad para la app y la función administrativa también sincroniza los campos heredados `app_metadata.empresa` y `app_metadata.rol`.
 
-### 3. Variables de Entorno
+Las tablas preexistentes conservan sus tipos de clave y columnas; la migración no intenta convertir, por ejemplo, `fuentes.id` ni añadir claves primarias que ya tengan otra forma. Antes de ejecutarla, confirma que las columnas de negocio usadas por la aplicación existan en el esquema actual. La migración detiene su ejecución si falta una de las seis tablas empresariales esperadas. Cada tabla requiere un `empresa_id` válido para las nuevas inserciones: no hay asignación automática a Smurfit. RLS impide lecturas entre organizaciones incluso si se modifica una ruta o un parámetro del cliente, salvo para los códigos macroeconómicos globales `TRM`, `IPC` y `TASA_BANREP`. Solo Analista/Gerente pueden editar alertas y únicamente Gerente puede actualizar decisiones.
+
+### 3. Creación de cuentas y asignación de roles
+1. Crea las cuentas de prueba en **Authentication → Users** de Supabase: tres para Smurfit y una para AMUCC. Configura sus contraseñas allí y confirma los correos según la política del proyecto.
+2. En **SQL Editor**, ejecuta `public.asignar_membresia(correo, empresa, rol, nombre)` una vez por cada usuario existente:
+   ```sql
+   select public.asignar_membresia('correo-consultor@smurfit.example', 'Smurfit', 'consultor', 'Consultor de prueba');
+   select public.asignar_membresia('correo-analista@smurfit.example', 'Smurfit', 'analista', 'Analista de prueba');
+   select public.asignar_membresia('correo-gerente@smurfit.example', 'Smurfit', 'gerente', 'Gerente de prueba');
+   select public.asignar_membresia('correo-gerente@amucc.example', 'Asociación de Mujeres Caficultoras del Cauca (AMUCC)', 'gerente', 'Gerente AMUCC');
+   ```
+   Sustituye los correos de ejemplo por los correos reales creados en Supabase Auth. El registro público crea la identidad, pero no concede acceso hasta que un administrador asigne empresa y rol.
+
+### 4. Variables de Entorno
 Edita el archivo local `.env` en la raíz del proyecto:
 ```env
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu-anon-public-key
-
-# Webhook de n8n Cloud (solo servidor local; no usar prefijo VITE_)
-N8N_WEBHOOK_URL=
-N8N_WEBHOOK_KEY=
 ```
 Usa únicamente la clave pública `anon`/publishable en la aplicación; nunca pongas la clave `service_role` en variables `VITE_`.
 
-La URL y la clave de n8n se leen solo desde el servidor local de Vite y no se envían al navegador. Si ya habías guardado esos valores como `VITE_N8N_WEBHOOK_URL` y `VITE_N8N_WEBHOOK_KEY`, renómbralos en `.env` a `N8N_WEBHOOK_URL` y `N8N_WEBHOOK_KEY`, sin cambiar los valores. Como las variables con prefijo `VITE_` pueden exponerse al cliente, genera una clave nueva en n8n antes de usar este botón y actualiza el valor local.
+En Windows, abre una terminal PowerShell en la carpeta raíz del repositorio. La primera vez, instala el CLI como dependencia de desarrollo e inicializa el proyecto (esto crea `supabase/config.toml`):
+```bash
+npm install --save-dev supabase
+npx supabase init
+npx supabase login
+npx supabase link --project-ref TU_PROJECT_REF
+```
+Obtén `TU_PROJECT_REF` de la URL del dashboard de Supabase: `https://supabase.com/dashboard/project/TU_PROJECT_REF`. Luego configura los secretos y despliega la función al proyecto enlazado:
+```bash
+npx supabase secrets set N8N_WEBHOOK_URL=https://tu-instancia-n8n/webhook/tu-webhook N8N_WEBHOOK_KEY=tu-clave-segura
+npx supabase functions deploy ejecutar-flujo
+```
+Si ya instalaste e inicializaste el CLI, no repitas esos pasos iniciales; basta con enlazar el proyecto correcto y desplegar.
+La función usa `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` del entorno administrado por Supabase; no copies la clave `service_role` a `.env` ni al navegador.
 
-El botón envía una solicitud `POST` con respuesta inmediata y únicamente el campo `requestedAt`; espera hasta cinco minutos a que `ejecuciones` registre nuevas filas con los valores de flujo `indicadores`, `noticias` y `recomendaciones`. La espera compara IDs nuevos (no fechas de los equipos) y muestra los nombres observados si no coinciden. En el nodo **Webhook** de n8n, configura método `POST`, respuesta **Immediately** y autenticación **Header Auth** con encabezado `X-API-Key`; usa la misma clave de `N8N_WEBHOOK_KEY`. Conecta la salida del Webhook directamente a los nodos iniciales de las tres ramas. Un nodo **Switch** que evalúe campos como `flujo` no seleccionará las tres ramas: la solicitud no contiene ese campo. Si mantienes un Switch, configúralo explícitamente para enviar el mismo elemento a todas las salidas requeridas. Cada rama debe insertar al finalizar su fila en `ejecuciones`, con `flujo` exactamente igual a `indicadores`, `noticias` o `recomendaciones`. Activa el webhook y configura `N8N_WEBHOOK_URL` con su **Production URL** (no la Test URL). El botón bloquea ejecuciones simultáneas mientras espera y, al terminar, refresca el historial desde Supabase.
+El botón invoca `ejecutar-flujo` con el JWT de Supabase y `flujo: "noticias"`. La función valida que el flujo sea uno de `indicadores`, `noticias` o `recomendaciones`, obtiene `empresa_id` del perfil activo del usuario y solo permite el rol Gerente; ignora cualquier empresa indicada por el navegador. Para `noticias`, rechaza nuevas solicitudes si la empresa ya tiene una ejecución iniciada en los últimos 10 minutos. Envía a n8n `empresa_id` (y `empresaId` para compatibilidad con el flujo existente), `flujo` y `requestedAt`. Configura el nodo **Webhook** con método `POST`, respuesta **Immediately** y autenticación **Header Auth** con encabezado `X-API-Key`; usa la misma clave de `N8N_WEBHOOK_KEY`. Conserva `empresa_id` por las ramas y asígnalo en cada fila insertada en `alertas`, `indicadores`, `valores_indicador`, `reglas`, `fuentes` y `ejecuciones`. Cada rama debe insertar su ejecución con `flujo` exactamente igual a `indicadores`, `noticias` o `recomendaciones`. El polling del navegador filtra por empresa autenticada. Activa el webhook y usa su **Production URL** (no la Test URL). Al finalizar, el botón refresca el historial desde Supabase.
 
-Reinicia Vite después de editar `.env`. Este relay existe únicamente en `npm run dev`, escucha solicitudes locales y no está incluido en el build de producción.
-
-### 4. Ejecución en modo desarrollo
+### 5. Ejecución en modo desarrollo
 ```bash
 npm run dev
 ```
@@ -105,12 +125,12 @@ Abre en tu navegador `http://localhost:5173`.
 
 | Módulo | Ruta | Propósito Principal |
 | --- | --- | --- |
-| **Panel Ejecutivo** | `/` | Indicadores macro (TRM, IPC, Tasa BanRep) con aviso de desactualización (>3 días), alertas prioritarias ($\ge 15$), resumen consolidado por factor PESTEL y decisiones pendientes. |
-| **Noticias Analizadas** | `/noticias` | Bandeja de analista: filtros por factor, nivel, área, estado y origen. Permite validar, descartar, reclasificar y ajustar probabilidad e impacto con recálculo instantáneo. |
-| **Análisis PESTEL** | `/pestel` | Desglose por los 6 factores, tendencias prospectivas, comparación y distinción clara de los 27 hallazgos base con la etiqueta `"base"`. |
-| **Recomendador de Decisiones** | `/recomendador` | Asocia alertas validadas con reglas determinísticas por `tipo_evento`. Muestra acción sugerida, responsable, motivo y supuestos. Permite aceptar o descartar la decisión. |
-| **Simulador Económico** | `/simulador` | Calcula la variación en pesos ante fluctuaciones de la TRM para compras en USD, con fórmula oficial y declaración explícita de supuestos. |
-| **Centro de Actualizaciones** | `/actualizaciones` | Auditoría del sistema: tabla de fuentes monitoreadas, frecuencias e historial de ejecuciones con detalle de fallos y registros nuevos. |
+| **Panel Ejecutivo** | `/dashboard` | Indicadores de la empresa autenticada, alertas prioritarias, resumen PESTEL y decisiones pendientes. |
+| **Noticias Analizadas** | `/dashboard/noticias` | Bandeja para consultar y, con rol autorizado, editar alertas de la propia empresa. |
+| **Análisis PESTEL** | `/dashboard/pestel` | Métricas y tendencias calculadas a partir de las alertas de la empresa autenticada. |
+| **Recomendador de Decisiones** | `/dashboard/recomendador` | Alertas validadas y reglas cargadas desde la base de datos de la empresa. |
+| **Simulador Económico** | `/dashboard/simulador` | Escenarios para la TRM registrada en la base de datos de la empresa. |
+| **Centro de Actualizaciones** | `/dashboard/actualizaciones` | Fuentes e historial de ejecuciones filtrados por empresa. |
 
 ---
 
