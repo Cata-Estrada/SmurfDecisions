@@ -1,5 +1,5 @@
 // ==============================================================================
-// PROYECTO: SmurfDecisions - Smurfit Westrock Colombia
+// AgroDecisions · Cliente Supabase de Coagropacífico
 // CLIENTE DE CONEXIÓN A SUPABASE
 // Fuente de verdad: AGENTS.md y docs/Documento maestro de definición del aplicativo.md
 // ==============================================================================

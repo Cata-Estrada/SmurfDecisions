@@ -1,5 +1,5 @@
 // ==============================================================================
-// PROYECTO: SmurfDecisions - Smurfit Westrock Colombia
+// AgroDecisions · Reglas de puntuación de análisis de riesgos
 // FÓRMULA OFICIAL DE PUNTAJE Y CLASIFICACIÓN DE IMPACTO
 // Fuente de verdad: docs/Documento maestro de definición del aplicativo.md
 // y docs/Análisis PESTEL – Smurfit Westrock Colombia.md

@@ -1,5 +1,5 @@
 // ==============================================================================
-// SmurfDecisions · Página de Registro Corporativo
+// AgroDecisions · Solicitud de acceso de Coagropacífico
 // ==============================================================================
 import React, { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
@@ -102,10 +102,10 @@ export default function Registro() {
       <nav className="flex-shrink-0 h-14 border-b border-white/5 flex items-center px-4 sm:px-6">
         <Link to="/" className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-[10px] text-white">
-            SD
+            AD
           </div>
           <span className="font-bold text-white text-sm tracking-tight">
-            Smurf<span className="text-blue-400">Decisions</span>
+            Agro<span className="text-blue-400">Decisions</span>
           </span>
         </Link>
         <div className="ml-auto text-xs text-slate-500">
@@ -121,9 +121,9 @@ export default function Registro() {
         <div className="w-full max-w-md">
           {/* Encabezado */}
           <div className="mb-8">
-            <h1 className="text-2xl font-extrabold text-white">Crear cuenta corporativa</h1>
+            <h1 className="text-2xl font-extrabold text-white">Solicitar acceso a AgroDecisions</h1>
             <p className="text-slate-400 text-sm mt-1">
-              La empresa y el rol se asignan desde el panel administrativo, nunca desde el formulario.
+              El acceso a los datos de compra de Coagropacífico requiere asignación de empresa y rol por un administrador.
             </p>
           </div>
 
@@ -246,7 +246,7 @@ export default function Registro() {
             <div className="flex items-start gap-2.5 bg-slate-900/80 border border-white/5 rounded-xl p-3 text-xs text-slate-500">
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-600" />
               <span>
-                Crear una cuenta no otorga acceso a datos. El administrador debe vincularla a una de las empresas autorizadas y asignarle el rol correspondiente.
+                Crear una cuenta no otorga acceso a datos. El administrador debe asignarle Coagropacífico y el rol correspondiente.
               </span>
             </div>
 
@@ -280,17 +280,10 @@ export default function Registro() {
 
           {/* Empresas y roles disponibles */}
           <div className="mt-6 bg-slate-900/60 border border-white/5 rounded-2xl p-5">
-            <p className="text-xs font-semibold text-slate-400 mb-3">Organizaciones habilitadas:</p>
-            <div className="space-y-2">
-              {[
-                { empresa: 'Smurfit', roles: 'Consultor, Analista y Gerente', color: 'text-blue-400' },
-                { empresa: 'Asociación de Mujeres Caficultoras del Cauca (AMUCC)', roles: 'Gerente', color: 'text-emerald-400' },
-              ].map((d) => (
-                <div key={d.empresa} className="flex items-center justify-between text-xs">
-                  <span className={`font-semibold ${d.color}`}>{d.empresa}</span>
-                  <span className="text-slate-500">{d.roles}</span>
-                </div>
-              ))}
+            <p className="text-xs font-semibold text-slate-400 mb-3">Cooperativa:</p>
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-emerald-400">Coagropacífico</span>
+              <span className="text-slate-500">Consultor, Analista y Gerente</span>
             </div>
           </div>
         </div>

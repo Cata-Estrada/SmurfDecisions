@@ -1,4 +1,6 @@
 -- Migracion aditiva para una base Supabase existente.
+-- Coagropacifico es la unica empresa activa; se conservan los datos heredados
+-- de otras empresas sin reasignarlos hasta que un administrador los revise.
 -- Respaldar la base y revisar el mapeo de empresa antes de ejecutarla.
 
 do $$
@@ -26,10 +28,13 @@ create table if not exists public.empresas (
 
 insert into public.empresas (nombre, sector)
 values
-  ('Smurfit', 'Empaques y Papel'),
-  ('Asociación de Mujeres Caficultoras del Cauca (AMUCC)', 'Caficultura')
+  ('Coagropacífico', 'Cacao y cooperativas')
 on conflict (nombre) do update
 set sector = excluded.sector, activo = true;
+
+update public.empresas
+set activo = false
+where nombre <> 'Coagropacífico';
 
 create table if not exists public.perfiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -40,6 +45,12 @@ create table if not exists public.perfiles (
   creado_en timestamptz not null default now()
 );
 
+update public.perfiles p
+set activo = false
+from public.empresas e
+where p.empresa_id = e.id
+  and not e.activo;
+
 alter table public.alertas add column if not exists empresa_id uuid;
 alter table public.indicadores add column if not exists empresa_id uuid;
 alter table public.valores_indicador add column if not exists empresa_id uuid;
@@ -47,45 +58,56 @@ alter table public.reglas add column if not exists empresa_id uuid;
 alter table public.fuentes add column if not exists empresa_id uuid;
 alter table public.ejecuciones add column if not exists empresa_id uuid;
 
--- Las alertas con una empresa reconocida se asignan a esa organización.
+create table if not exists public.configuracion_compra_cacao (
+  empresa_id uuid primary key references public.empresas(id) on delete restrict,
+  trm_cop numeric(14, 4) check (trm_cop is null or trm_cop > 0),
+  margen_pct numeric(6, 3) check (margen_pct is null or margen_pct between 0 and 99.999),
+  caja_disponible_cop numeric(18, 2) check (caja_disponible_cop is null or caja_disponible_cop >= 0),
+  colchon_pct numeric(6, 3) check (colchon_pct is null or colchon_pct >= 0),
+  actualizado_por uuid references auth.users(id) on delete set null,
+  actualizado_en timestamptz not null default now()
+);
+
+create table if not exists public.calidades_cacao (
+  id uuid primary key default pg_catalog.gen_random_uuid(),
+  empresa_id uuid not null references public.empresas(id) on delete restrict,
+  nombre text not null check (length(trim(nombre)) > 0),
+  diferencial_usd_t numeric(14, 4),
+  volumen_kg numeric(18, 3) check (volumen_kg is null or volumen_kg >= 0),
+  acopio_pct numeric(6, 3) check (acopio_pct is null or acopio_pct >= 0),
+  costo_produccion_cop_kg numeric(14, 4) check (
+    costo_produccion_cop_kg is null or costo_produccion_cop_kg >= 0
+  ),
+  actualizado_por uuid references auth.users(id) on delete set null,
+  actualizado_en timestamptz not null default now(),
+  unique (empresa_id, nombre)
+);
+
+create table if not exists public.observaciones_precio_cacao (
+  id uuid primary key default pg_catalog.gen_random_uuid(),
+  empresa_id uuid not null references public.empresas(id) on delete restrict,
+  precio_usd_t numeric(14, 4) not null check (precio_usd_t > 0),
+  fuente text not null check (length(trim(fuente)) > 0),
+  instrumento text not null default 'ICEUS:CC1!',
+  observado_en timestamptz not null,
+  registrado_por uuid references auth.users(id) on delete set null,
+  creado_en timestamptz not null default now()
+);
+
+create index if not exists observaciones_precio_cacao_empresa_fecha_idx
+  on public.observaciones_precio_cacao (empresa_id, observado_en desc);
+
+-- Solo se asignan automáticamente las alertas identificadas explícitamente
+-- como Coagropacífico. Los registros heredados de otras empresas no se mezclan.
 update public.alertas a
 set empresa_id = e.id
 from public.empresas e
 where a.empresa_id is null
-  and (
-    (e.nombre = 'Asociación de Mujeres Caficultoras del Cauca (AMUCC)'
-      and lower(trim(coalesce(a.empresa, ''))) in (
-        'amucc',
-        'asociación de mujeres caficultoras del cauca (amucc)'
-      ))
-    or
-    (e.nombre = 'Smurfit'
-      and lower(trim(coalesce(a.empresa, ''))) in ('smurfit', 'smurfit westrock', 'smurfit westrock colombia'))
+  and e.nombre = 'Coagropacífico'
+  and lower(trim(coalesce(a.empresa, ''))) in (
+    'coagropacífico',
+    'coagropacifico'
   );
-
--- Confirmado por la administración: los registros heredados sin etiqueta de
--- empresa pertenecen a Smurfit. Las alertas etiquetadas con organizaciones
--- retiradas no se reasignan ni se eliminan; permanecen sin empresa_id y ocultas.
-update public.alertas
-set empresa_id = (select id from public.empresas where nombre = 'Smurfit')
-where empresa_id is null
-  and nullif(trim(empresa), '') is null;
-
-update public.indicadores
-set empresa_id = (select id from public.empresas where nombre = 'Smurfit')
-where empresa_id is null;
-update public.valores_indicador
-set empresa_id = (select id from public.empresas where nombre = 'Smurfit')
-where empresa_id is null;
-update public.reglas
-set empresa_id = (select id from public.empresas where nombre = 'Smurfit')
-where empresa_id is null;
-update public.fuentes
-set empresa_id = (select id from public.empresas where nombre = 'Smurfit')
-where empresa_id is null;
-update public.ejecuciones
-set empresa_id = (select id from public.empresas where nombre = 'Smurfit')
-where empresa_id is null;
 
 do $$
 declare
@@ -116,15 +138,7 @@ begin
 end;
 $$;
 
--- Deshabilitar organizaciones retiradas sin borrar empresas, perfiles ni datos.
-update public.empresas
-set activo = false
-where nombre not in (
-  'Smurfit',
-  'Asociación de Mujeres Caficultoras del Cauca (AMUCC)'
-);
-
--- Migrar membresías heredadas únicamente cuando empresa y rol son reconocidos.
+-- Importar solo membresías cuyo metadato identifica la empresa activa.
 insert into public.perfiles (id, empresa_id, nombre, rol, activo)
 select
   u.id,
@@ -138,17 +152,11 @@ select
   true
 from auth.users u
 join public.empresas e
-  on e.activo
-  and (
-    (e.nombre = 'Smurfit' and lower(trim(coalesce(u.raw_app_meta_data ->> 'empresa', '')))
-      in ('smurfit', 'smurfit westrock', 'smurfit westrock colombia'))
-    or
-    (e.nombre = 'Asociación de Mujeres Caficultoras del Cauca (AMUCC)'
-      and lower(trim(coalesce(u.raw_app_meta_data ->> 'empresa', '')))
-      in ('amucc', 'asociación de mujeres caficultoras del cauca (amucc)'))
-  )
+  on e.activo and e.nombre = 'Coagropacífico'
 where lower(trim(coalesce(u.raw_app_meta_data ->> 'rol', '')))
   in ('consultor', 'analista', 'gerente')
+  and lower(trim(coalesce(u.raw_app_meta_data ->> 'empresa', '')))
+    in ('coagropacífico', 'coagropacifico')
 on conflict (id) do nothing;
 
 create or replace function public.empresa_actual()
@@ -242,7 +250,9 @@ declare
 begin
   foreach tabla in array array[
     'empresas', 'perfiles', 'alertas', 'indicadores',
-    'valores_indicador', 'reglas', 'fuentes', 'ejecuciones'
+    'valores_indicador', 'reglas', 'fuentes', 'ejecuciones',
+    'configuracion_compra_cacao', 'calidades_cacao',
+    'observaciones_precio_cacao'
   ] loop
     for politica in
       select policyname
@@ -263,6 +273,62 @@ using (id = auth.uid());
 create policy empresas_select_propia
 on public.empresas for select to authenticated
 using (id = public.empresa_actual() and activo);
+
+create policy configuracion_compra_cacao_select_empresa
+on public.configuracion_compra_cacao for select to authenticated
+using (empresa_id = public.empresa_actual());
+create policy configuracion_compra_cacao_insert_rol
+on public.configuracion_compra_cacao for insert to authenticated
+with check (
+  empresa_id = public.empresa_actual()
+  and public.rol_actual() in ('analista', 'gerente')
+);
+create policy configuracion_compra_cacao_update_rol
+on public.configuracion_compra_cacao for update to authenticated
+using (
+  empresa_id = public.empresa_actual()
+  and public.rol_actual() in ('analista', 'gerente')
+)
+with check (
+  empresa_id = public.empresa_actual()
+  and public.rol_actual() in ('analista', 'gerente')
+);
+
+create policy calidades_cacao_select_empresa
+on public.calidades_cacao for select to authenticated
+using (empresa_id = public.empresa_actual());
+create policy calidades_cacao_insert_rol
+on public.calidades_cacao for insert to authenticated
+with check (
+  empresa_id = public.empresa_actual()
+  and public.rol_actual() in ('analista', 'gerente')
+);
+create policy calidades_cacao_update_rol
+on public.calidades_cacao for update to authenticated
+using (
+  empresa_id = public.empresa_actual()
+  and public.rol_actual() in ('analista', 'gerente')
+)
+with check (
+  empresa_id = public.empresa_actual()
+  and public.rol_actual() in ('analista', 'gerente')
+);
+create policy calidades_cacao_delete_rol
+on public.calidades_cacao for delete to authenticated
+using (
+  empresa_id = public.empresa_actual()
+  and public.rol_actual() in ('analista', 'gerente')
+);
+
+create policy observaciones_precio_cacao_select_empresa
+on public.observaciones_precio_cacao for select to authenticated
+using (empresa_id = public.empresa_actual());
+create policy observaciones_precio_cacao_insert_rol
+on public.observaciones_precio_cacao for insert to authenticated
+with check (
+  empresa_id = public.empresa_actual()
+  and public.rol_actual() in ('analista', 'gerente')
+);
 
 create policy alertas_select_empresa
 on public.alertas for select to authenticated
@@ -299,11 +365,16 @@ revoke all on public.empresas, public.perfiles, public.alertas, public.indicador
 from anon, authenticated;
 
 grant select on public.empresas, public.perfiles, public.alertas, public.indicadores,
-  public.valores_indicador, public.reglas, public.fuentes, public.ejecuciones
+  public.valores_indicador, public.reglas, public.fuentes, public.ejecuciones,
+  public.configuracion_compra_cacao, public.calidades_cacao,
+  public.observaciones_precio_cacao
 to authenticated;
 
 grant update (probabilidad, impacto, puntaje, nivel, prioritaria, factor, area, tipo_evento, estado, decision)
 on public.alertas to authenticated;
+grant insert, update on public.configuracion_compra_cacao to authenticated;
+grant insert, update, delete on public.calidades_cacao to authenticated;
+grant insert on public.observaciones_precio_cacao to authenticated;
 
 grant execute on function public.empresa_actual() to authenticated;
 grant execute on function public.rol_actual() to authenticated;
@@ -371,12 +442,10 @@ from public, anon, authenticated;
 grant execute on function public.asignar_membresia(text, text, text, text)
 to postgres;
 
--- Las alertas etiquetadas con empresas retiradas permanecen sin empresa_id y
--- ocultas por RLS. Revise y clasifique esas filas antes de darles acceso.
+-- Las empresas y filas heredadas se conservan, pero las empresas anteriores
+-- quedan inactivas y sus datos no son visibles mediante RLS. Revise y clasifique
+-- esos datos antes de asignarlos a Coagropacífico.
 --
 -- Ejemplo administrativo: primero cree las cuentas en Supabase Auth y luego
--- ejecute una llamada por cuenta usando sus correos reales:
--- select public.asignar_membresia('correo-consultor@smurfit.example', 'Smurfit', 'consultor', 'Consultor de prueba');
--- select public.asignar_membresia('correo-analista@smurfit.example', 'Smurfit', 'analista', 'Analista de prueba');
--- select public.asignar_membresia('correo-gerente@smurfit.example', 'Smurfit', 'gerente', 'Gerente de prueba');
--- select public.asignar_membresia('correo-gerente@amucc.example', 'Asociación de Mujeres Caficultoras del Cauca (AMUCC)', 'gerente', 'Gerente AMUCC');
+-- asigne una membresía por usuario con el rol autorizado:
+-- select public.asignar_membresia('correo@coagropacifico.example', 'Coagropacífico', 'consultor', 'Nombre de prueba');

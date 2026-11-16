@@ -188,3 +188,114 @@ export async function getReglas(empresaId) {
   });
   return { data: reglas, source: 'supabase' };
 }
+
+export async function getDatosCompraCacao(empresaId) {
+  requireEmpresa(empresaId);
+  const [configuracion, calidades] = await Promise.all([
+    supabase
+      .from('configuracion_compra_cacao')
+      .select('*')
+      .eq('empresa_id', empresaId)
+      .maybeSingle(),
+    supabase
+      .from('calidades_cacao')
+      .select('*')
+      .eq('empresa_id', empresaId)
+      .order('nombre')
+  ]);
+
+  throwIfError(configuracion.error, 'No se pudo consultar la configuración de compra de cacao');
+  throwIfError(calidades.error, 'No se pudieron consultar las calidades de cacao');
+
+  return {
+    configuracion: configuracion.data,
+    calidades: calidades.data || []
+  };
+}
+
+export async function guardarConfiguracionCompraCacao(empresaId, usuarioId, campos) {
+  requireEmpresa(empresaId);
+  const { data, error } = await supabase
+    .from('configuracion_compra_cacao')
+    .upsert(
+      { ...campos, empresa_id: empresaId, actualizado_por: usuarioId },
+      { onConflict: 'empresa_id' }
+    )
+    .select()
+    .single();
+
+  throwIfError(error, 'No se pudo guardar la configuración de compra');
+  return data;
+}
+
+export async function guardarCalidadCacao(empresaId, usuarioId, calidad) {
+  requireEmpresa(empresaId);
+  const { data, error } = await supabase
+    .from('calidades_cacao')
+    .upsert(
+      { ...calidad, empresa_id: empresaId, actualizado_por: usuarioId },
+      { onConflict: 'id' }
+    )
+    .select()
+    .single();
+
+  throwIfError(error, `No se pudo guardar la calidad "${calidad.nombre}"`);
+  return data;
+}
+
+export async function eliminarCalidadCacao(id, empresaId) {
+  requireEmpresa(empresaId);
+  const { error } = await supabase
+    .from('calidades_cacao')
+    .delete()
+    .eq('id', id)
+    .eq('empresa_id', empresaId);
+
+  throwIfError(error, 'No se pudo eliminar la calidad de cacao');
+}
+
+export async function getPrecioCacaoMercado({ includeTrm = true } = {}) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase no está configurado. No se puede consultar la cotización del cacao.');
+  }
+
+  const { data, error } = await supabase.functions.invoke('precio-cacao', {
+    body: { includeTrm }
+  });
+  if (error) {
+    if (error.name === 'FunctionsFetchError') {
+      throw new Error(
+        'No se pudo conectar con la función de precios de Supabase. Confirma que "precio-cacao" esté desplegada y que el proyecto esté enlazado correctamente.'
+      );
+    }
+    if (error.name === 'FunctionsRelayError') {
+      throw new Error(
+        'Supabase no encuentra la función "precio-cacao". Despliega la versión Yahoo en Edge Functions para cargar la cotización.'
+      );
+    }
+    if (error.name === 'FunctionsHttpError') {
+      throw new Error(
+        `La función de precios respondió con un error HTTP (${error.context?.status ?? 'desconocido'}). Revisa sus logs en Supabase → Edge Functions → precio-cacao.`
+      );
+    }
+    throw new Error(`No se pudo consultar el precio actual del cacao: ${error.message}`);
+  }
+  if (data?.quote?.precio !== undefined ||
+      data?.points?.some((point) => point?.fecha !== undefined)) {
+    throw new Error(
+      'La Edge Function desplegada todavía devuelve el formato mensual anterior. Actualiza y vuelve a desplegar "precio-cacao" con el archivo supabase/functions/precio-cacao/index.ts; no necesitas cambiar el schema.'
+    );
+  }
+  if (!Number.isFinite(data?.quote?.price) ||
+      !Number.isFinite(data?.quote?.timestamp) ||
+      !Array.isArray(data.points) ||
+      data.points.length === 0 ||
+      data.points.some((point) =>
+        !Number.isFinite(point?.timestamp) || !Number.isFinite(point?.price)
+      )) {
+    throw new Error(
+      'La Edge Function respondió, pero su formato no coincide con la versión Yahoo del gráfico. Vuelve a desplegar "precio-cacao" desde supabase/functions/precio-cacao/index.ts.'
+    );
+  }
+  return data;
+}
