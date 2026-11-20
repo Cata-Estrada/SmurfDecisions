@@ -452,6 +452,16 @@ create policy alertas_update_empresa_rol on public.alertas
   using (empresa_id = public.empresa_actual() and public.puede_editar())
   with check (empresa_id = public.empresa_actual() and public.puede_editar());
 
+-- Permisos de tabla para la API. Los proyectos nuevos de Supabase no los
+-- otorgan automáticamente; sin ellos Postgres responde "permission denied for
+-- table ..." antes de evaluar RLS. RLS sigue decidiendo qué filas ve o cambia
+-- cada usuario. anon no recibe nada: la app solo consulta con sesión iniciada.
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+
 -- ------------------------------------------------------------------------------
 -- 8. Alta de usuarios (solo administrador, desde SQL Editor)
 -- ------------------------------------------------------------------------------

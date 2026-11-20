@@ -192,7 +192,7 @@ export async function getReglas(empresaId) {
 
 export async function getDatosCompraCacao(empresaId) {
   requireEmpresa(empresaId);
-  const [configuracion, calidades, caja] = await Promise.all([
+  const [configuracion, calidades, reglasCompra, caja] = await Promise.all([
     supabase
       .from('configuracion_compra_cacao')
       .select('*')
@@ -203,13 +203,19 @@ export async function getDatosCompraCacao(empresaId) {
       .select('*')
       .eq('empresa_id', empresaId)
       .order('nombre'),
+    supabase
+      .from('reglas_compra')
+      .select('*')
+      .eq('empresa_id', empresaId),
     getCajaVigente(empresaId)
   ]);
 
   throwIfError(configuracion.error, 'No se pudo consultar la configuración de compra de cacao');
   throwIfError(calidades.error, 'No se pudieron consultar las calidades de cacao');
+  throwIfError(reglasCompra.error, 'No se pudieron consultar las reglas de compra');
 
   return {
+    reglasCompra: reglasCompra.data || [],
     configuracion: (configuracion.data || caja)
       ?{ ...(configuracion.data || {}), caja_disponible_cop: caja?.disponible_cop ?? null }
       : null,

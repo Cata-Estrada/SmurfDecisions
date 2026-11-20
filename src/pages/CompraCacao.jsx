@@ -9,6 +9,8 @@ import {
   Trash2
 } from 'lucide-react';
 import PrecioCacaoChart from '../components/PrecioCacaoChart';
+import EscenariosCapital from '../components/EscenariosCapital';
+import Semaforo from '../components/Semaforo';
 import { useAuth } from '../lib/authContext';
 import {
   eliminarCalidadCacao,
@@ -17,35 +19,30 @@ import {
   guardarConfiguracionCompraCacao
 } from '../lib/dataService';
 import {
+  ETIQUETA_COBERTURA,
+  ETIQUETA_NIVEL,
+  UMBRALES_PREDETERMINADOS,
   calcularCompraCacao,
   resumirMercado,
   valorNumerico
 } from '../lib/compraCacao';
+import { mostrarNumero, mostrarPesos, mostrarPorcentaje } from '../lib/formato';
 
 const CONFIGURACION_VACIA = {
   trm_cop: '',
   margen_pct: '',
   caja_disponible_cop: '',
-  colchon_pct: ''
+  colchon_pct: '',
+  ...Object.fromEntries(Object.keys(UMBRALES_PREDETERMINADOS).map((campo) => [campo, '']))
 };
 
-function mostrarNumero(value, options = {}) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
-  return new Intl.NumberFormat('es-CO', {
-    maximumFractionDigits: 2,
-    ...options
-  }).format(Number(value));
-}
-
-function mostrarPesos(value, decimals = 0) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: decimals,
-    minimumFractionDigits: decimals
-  }).format(Number(value));
-}
+const CAMPOS_UMBRAL = [
+  ['ventana_percentil_dias', 'Ventana de percentiles (días)', '1'],
+  ['dias_variacion', 'Días hábiles para la variación', '1'],
+  ['umbral_variacion_pct', 'Alerta de variación (%)', '0.1'],
+  ['cobertura_ajustada_pct', 'Cobertura mínima (%)', '1'],
+  ['cobertura_holgada_pct', 'Cobertura holgada desde (%)', '1']
+];
 
 function desdeBaseDeDatos(configuracion) {
   return Object.fromEntries(
@@ -83,6 +80,14 @@ function validarConfiguracion(configuracion) {
   }
   if (caja !== null && caja < 0) return 'La caja disponible no puede ser negativa.';
   if (colchon !== null && colchon < 0) return 'El colchón no puede ser negativo.';
+
+  for (const [campo, etiqueta] of CAMPOS_UMBRAL) {
+    const valor = valorNumerico(configuracion[campo]);
+    if (valor === null || valor <= 0) return `${etiqueta}: escribe un valor mayor que cero.`;
+  }
+  if (Number(configuracion.cobertura_holgada_pct) <= Number(configuracion.cobertura_ajustada_pct)) {
+    return 'La cobertura holgada debe ser mayor que la cobertura mínima.';
+  }
   return '';
 }
 
@@ -91,6 +96,7 @@ export default function CompraCacao() {
   const puedeEditar = permisos.puedeEditarRiesgos;
   const [configuracion, setConfiguracion] = useState(CONFIGURACION_VACIA);
   const [calidades, setCalidades] = useState([]);
+  const [reglasCompra, setReglasCompra] = useState([]);
   const [cotizacionMercado, setCotizacionMercado] = useState(null);
   const [trmOficial, setTrmOficial] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -103,7 +109,8 @@ export default function CompraCacao() {
     setError('');
     try {
       const datos = await getDatosCompraCacao(empresaId);
-      setConfiguracion(desdeBaseDeDatos(datos.configuracion));
+      setConfiguracion(desdeBaseDeDatos({ ...UMBRALES_PREDETERMINADOS, ...(datos.configuracion || {}) }));
+      setReglasCompra(datos.reglasCompra);
       setCalidades(datos.calidades.map((calidad) => ({
         ...calidad,
         diferencial_usd_t: calidad.diferencial_usd_t ?? '',
@@ -123,8 +130,8 @@ export default function CompraCacao() {
   }, [empresaId]);
 
   const mercado = useMemo(
-    () => resumirMercado(cotizacionMercado?.points || []),
-    [cotizacionMercado]
+    () => resumirMercado(cotizacionMercado?.points || [], configuracion),
+    [cotizacionMercado, configuracion]
   );
   const recibirCotizacion = useCallback((cotizacion) => {
     setCotizacionMercado(cotizacion);
@@ -134,8 +141,8 @@ export default function CompraCacao() {
   const precioActual = cotizacionMercado?.quote?.price ?? null;
   const cambioDiarioPct = cotizacionMercado?.quote?.changePercent ?? null;
   const calculo = useMemo(
-    () => calcularCompraCacao(configuracion, calidades, precioActual, mercado),
-    [configuracion, calidades, precioActual, mercado]
+    () => calcularCompraCacao(configuracion, calidades, precioActual, mercado, { reglas: reglasCompra }),
+    [configuracion, calidades, precioActual, mercado, reglasCompra]
   );
 
   async function guardarParametros() {
@@ -231,8 +238,7 @@ export default function CompraCacao() {
 
   const inputClass = 'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-500';
   const labelClass = 'mb-1 block text-xs font-medium text-slate-600';
-  const alertaMovimiento = cambioDiarioPct !== null &&
-    Math.abs(cambioDiarioPct) > 5;
+  const alertaMovimiento = mercado.alertaVariacion;
 
   if (cargando) {
     return <div className="p-12 text-center text-sm text-slate-500">Cargando parámetros de compra de cacao…</div>;
@@ -242,9 +248,9 @@ export default function CompraCacao() {
     <div className="space-y-6">
       <header className="border-b border-slate-200 pb-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Coagropacífico · Cacao</p>
-        <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900">Panel de compra y capital</h1>
+        <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900">Simulador de capital</h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-600">
-          Revisa el referente internacional y calcula el capital necesario con los parámetros que defina la cooperativa.
+          Con el precio de bolsa, la TRM y el volumen calcula el precio por kilo, el capital requerido, la cobertura de caja y la brecha. Prueba escenarios de precio y dólar.
           Las recomendaciones aplican reglas transparentes; no son un pronóstico del precio.
         </p>
       </header>
@@ -284,8 +290,15 @@ export default function CompraCacao() {
           )}
           {cambioDiarioPct !== null && (
             <span>
-              Variación diaria: <strong className={alertaMovimiento ? 'text-rose-700' : 'text-slate-800'}>
-                {cambioDiarioPct > 0 ? '+' : ''}{mostrarNumero(cambioDiarioPct)} %
+              Variación diaria: <strong className="text-slate-800">
+                {mostrarPorcentaje(cambioDiarioPct, { signo: true })}
+              </strong>
+            </span>
+          )}
+          {mercado.variacionPct !== null && (
+            <span>
+              Variación en {mercado.diasVariacion} días hábiles: <strong className={alertaMovimiento ? 'text-rose-700' : 'text-slate-800'}>
+                {mostrarPorcentaje(mercado.variacionPct, { signo: true })}
               </strong>
             </span>
           )}
@@ -295,7 +308,7 @@ export default function CompraCacao() {
       {alertaMovimiento && (
         <div role="status" className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          La variación diaria de la referencia superó 5 %. Revisa el precio y sus efectos en el plan de compra.
+          La bolsa se movió {mostrarPorcentaje(mercado.variacionPct, { signo: true })} en {mercado.diasVariacion} días hábiles, más que el umbral de {mostrarNumero(mercado.umbralVariacion)} %. Revisa el precio y sus efectos en el plan de compra.
         </div>
       )}
 
@@ -414,6 +427,30 @@ export default function CompraCacao() {
         <p className="mt-2 text-[11px] text-slate-500">
           La TRM guardada no cambia automáticamente. Al seleccionar “Usar TRM oficial”, se propone en el campo; debes guardar los parámetros para persistirla.
         </p>
+
+        <div className="mt-6">
+          <h3 className="text-xs font-bold text-slate-800">Umbrales del recomendador</h3>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Reglas de partida de la contrapropuesta. La cooperativa debe validarlas antes de usarlas para decidir.
+          </p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {CAMPOS_UMBRAL.map(([field, label, step]) => (
+              <div key={field}>
+                <label className={labelClass} htmlFor={field}>{label}</label>
+                <input
+                  id={field}
+                  className={inputClass}
+                  type="number"
+                  min="0"
+                  step={step}
+                  value={configuracion[field]}
+                  onChange={(event) => actualizarConfiguracion(field, event.target.value)}
+                  disabled={!puedeEditar}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div className="mt-6">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -536,6 +573,7 @@ export default function CompraCacao() {
                     <th className="px-2 py-2">Volumen (kg)</th>
                     <th className="px-2 py-2">Capital con acopio</th>
                     <th className="px-2 py-2">Costo producción</th>
+                    <th className="px-2 py-2">Semáforo y acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -553,6 +591,14 @@ export default function CompraCacao() {
                             {calidad.debajoCostoProduccion ? ' · Precio menor al costo' : ''}
                           </span>}
                       </td>
+                      <td className="px-2 py-2">
+                        {calidad.recomendacion ? (
+                          <div className="space-y-1">
+                            <Semaforo color={calidad.semaforo} etiqueta={calidad.recomendacion.titulo} />
+                            <p className="max-w-xs text-[11px] leading-snug text-slate-600">{calidad.recomendacion.recomendacion}</p>
+                          </div>
+                        ) : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -561,18 +607,20 @@ export default function CompraCacao() {
 
             {calculo.recomendacion ? (
               <div className={`mt-4 rounded-md border p-3 text-sm ${
-                mercado.nivelPrecio === 'Alto' && calculo.coberturaPct <= 120
+                calculo.recomendacion.semaforo === 'rojo'
                   ? 'border-rose-300 bg-rose-50 text-rose-900'
+                  : calculo.recomendacion.semaforo === 'amarillo'
+                  ? 'border-amber-200 bg-amber-50 text-amber-900'
                   : 'border-emerald-200 bg-emerald-50 text-emerald-900'
               }`}>
                 <strong>
-                  {mercado.nivelPrecio} relativo al historial de 5 años · Cobertura {mostrarNumero(calculo.coberturaPct)} %.
+                  Precio {ETIQUETA_NIVEL[calculo.nivelPrecio]?.toLowerCase()} frente a los últimos {mercado.ventanaDias} días · Caja {ETIQUETA_COBERTURA[calculo.cobertura]?.toLowerCase()} ({mostrarPorcentaje(calculo.coberturaPct)}).
                 </strong>
-                <p className="mt-1">{calculo.recomendacion}</p>
+                <p className="mt-1">{calculo.recomendacion.titulo}. {calculo.recomendacion.recomendacion}</p>
               </div>
             ) : (
               <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                Se necesitan al menos dos meses de datos publicados para comparar el precio con el historial y habilitar la recomendación.
+                Se necesitan al menos 10 cierres de bolsa en la ventana de {mercado.ventanaDias} días para ubicar el precio y habilitar la recomendación.
               </div>
             )}
 
@@ -585,18 +633,34 @@ export default function CompraCacao() {
           </>
         ) : (
           <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
-            Aún faltan datos para calcular. Registra una observación del precio, la TRM, margen, caja, colchón y al menos una calidad con
+            Aún faltan datos para calcular. Se necesitan la cotización de bolsa, la TRM, el margen, la caja, el colchón y al menos una calidad con
             diferencial, volumen y costo de acopio. No se utilizan valores inventados como datos de la cooperativa.
           </div>
         )}
 
         {mercado.ultimo && (
           <p className="mt-4 text-[11px] text-slate-500">
-            Percentiles del historial de hasta 60 meses: P25 US$ {mostrarNumero(mercado.percentil25)} / t ·
+            Percentiles de los últimos {mercado.ventanaDias} días: P25 US$ {mostrarNumero(mercado.percentil25)} / t ·
             {' '}P75 US$ {mostrarNumero(mercado.percentil75)} / t ·
-              {' '}{mercado.observaciones.length} meses con dato.
+            {' '}{mercado.datosVentana} cierres con dato.
           </p>
         )}
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-4 border-b border-slate-100 pb-3">
+          <h2 className="text-sm font-bold text-slate-900">Escenarios</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            ¿Qué pasa con el capital si la bolsa, el dólar o el volumen cambian? Los escenarios no se guardan.
+          </p>
+        </div>
+        <EscenariosCapital
+          configuracion={configuracion}
+          calidades={calidades}
+          precioActual={precioActual}
+          mercado={mercado}
+          reglas={reglasCompra}
+        />
       </section>
     </div>
   );

@@ -24,11 +24,11 @@ import { getConexionStatus } from '../lib/dataService';
 import { useAuth } from '../lib/authContext';
 
 const NAV_ITEMS = [
-  { path: '/dashboard',               label: 'Panel Ejecutivo',      icon: LayoutDashboard, end: true },
+  { path: '/dashboard',               label: 'Panel de compra',      icon: LayoutDashboard, end: true },
   { path: '/dashboard/noticias',      label: 'Noticias Analizadas',  icon: Newspaper },
   { path: '/dashboard/pestel',        label: 'Análisis PESTEL',      icon: Compass },
   { path: '/dashboard/recomendador',  label: 'Recomendador',         icon: Lightbulb },
-  { path: '/dashboard/simulador',     label: 'Compra de cacao',      icon: Calculator },
+  { path: '/dashboard/simulador',     label: 'Simulador de capital', icon: Calculator },
   { path: '/dashboard/actualizaciones', label: 'Actualizaciones',    icon: RefreshCw },
 ];
 
