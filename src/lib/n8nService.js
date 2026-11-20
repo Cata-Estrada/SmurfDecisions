@@ -1,8 +1,7 @@
 import { getEjecucionesPosteriores } from './dataService';
 import { supabase } from './supabase';
 
-const FLUJOS_ESPERADOS = ['indicadores', 'noticias', 'recomendaciones'];
-const FLUJO_SOLICITADO = 'noticias';
+export const FLUJOS_N8N = ['noticias', 'precios'];
 const INTERVALO_CONSULTA_MS = 2500;
 const TIEMPO_MAXIMO_ESPERA_MS = 5 * 60 * 1000;
 
@@ -17,7 +16,7 @@ export async function ejecutarFlujosN8n() {
   if (!accessToken) throw new Error('Inicia sesión para ejecutar los flujos.');
 
   const { data: result, error: invokeError } = await supabase.functions.invoke('ejecutar-flujo', {
-    body: { flujo: FLUJO_SOLICITADO },
+    body: { flujos: FLUJOS_N8N },
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
@@ -55,7 +54,7 @@ export async function ejecutarFlujosN8n() {
   return result;
 }
 
-export async function esperarEjecucionN8n({ idMinimo, empresaId, onActualizacion }) {
+export async function esperarEjecucionN8n({ idMinimo, empresaId, flujos = FLUJOS_N8N, onActualizacion }) {
   const limite = Date.now() + TIEMPO_MAXIMO_ESPERA_MS;
   let porFlujo = new Map();
   let ejecucionesObservadas = [];
@@ -69,7 +68,7 @@ export async function esperarEjecucionN8n({ idMinimo, empresaId, onActualizacion
       porFlujo.set(ejecucion.flujo, ejecucion);
     }
 
-    const resultados = FLUJOS_ESPERADOS.map((flujo) => porFlujo.get(flujo) || null);
+    const resultados = flujos.map((flujo) => porFlujo.get(flujo) || null);
     onActualizacion?.(resultados);
 
     if (resultados.every(Boolean)) {
@@ -80,7 +79,7 @@ export async function esperarEjecucionN8n({ idMinimo, empresaId, onActualizacion
   }
 
   return {
-    ejecuciones: FLUJOS_ESPERADOS.map((flujo) => porFlujo.get(flujo) || null),
+    ejecuciones: flujos.map((flujo) => porFlujo.get(flujo) || null),
     ejecucionesObservadas,
     timedOut: true
   };

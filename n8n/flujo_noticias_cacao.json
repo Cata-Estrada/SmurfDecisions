@@ -1,0 +1,793 @@
+{
+  "name": "Noticias del cacao",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "c088733b-8666-5c70-82b2-c5113ddbb0df",
+      "name": "Cada 6 horas",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cacao-noticias",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2df8be3b-81e9-56a3-8e89-9d7e98eff862",
+      "name": "Botón de la app",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "8354542f-ed78-5a5e-923d-08e2700d1ffd"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "empresas",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "activo",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        }
+      },
+      "id": "ecd3d4f4-6650-51bf-bac1-1624d79358d3",
+      "name": "Empresa activa",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        240,
+        100
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "consultas",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "empresa_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Empresa activa').first().json.id }}"
+            },
+            {
+              "keyName": "activa",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        }
+      },
+      "id": "da085922-a5ef-5389-8d91-191c268c7e60",
+      "name": "Consultas",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        460,
+        100
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "areas",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "empresa_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Empresa activa').first().json.id }}"
+            }
+          ]
+        }
+      },
+      "id": "1c54385a-b399-5ec0-a58b-c578e8983d0c",
+      "name": "Áreas",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        680,
+        100
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "reglas",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "empresa_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Empresa activa').first().json.id }}"
+            }
+          ]
+        }
+      },
+      "id": "7939bdcf-c56a-5a16-afdb-296a97c18e5e",
+      "name": "Reglas",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        900,
+        100
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "alertas",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "empresa_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Empresa activa').first().json.id }}"
+            }
+          ]
+        }
+      },
+      "id": "494b5838-886a-5426-a5b2-02642dde302c",
+      "name": "Alertas existentes",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        100
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Una URL de Google Noticias por cada búsqueda activa (últimos 7 días).\n// Las búsquedas en inglés se consultan en la edición en inglés.\nconst inicio = new Date().toISOString();\nreturn $('Consultas').all()\n  .map(i => i.json)\n  .filter(c => c.query)\n  .map(c => {\n    const ingles = /\\b(cocoa|harvest|grindings|futures|arrivals)\\b/i.test(c.query);\n    const edicion = ingles ? 'hl=en-US&gl=US&ceid=US:en' : 'hl=es-419&gl=CO&ceid=CO:es-419';\n    return { json: {\n      inicio,\n      tema: c.tema,\n      url: 'https://news.google.com/rss/search?q=' + encodeURIComponent(c.query + ' when:7d') + '&' + edicion\n    }};\n  });\n"
+      },
+      "id": "59cb1e2c-4914-51ba-8a56-829497fa20b1",
+      "name": "Armar búsquedas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "id": "252da622-46a5-58e3-8230-c744ca325aa0",
+      "name": "Leer RSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        1560,
+        100
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Quita duplicados (contra la base y entre sí) y deja máximo 12 noticias, las más recientes.\n// Si no queda ninguna, devuelve un solo ítem vacío para que igual se registre la ejecución.\nconst existentes = $('Alertas existentes').all().map(i => i.json).filter(e => e && e.id);\nconst enlaces = new Set(existentes.map(e => e.enlace).filter(Boolean));\nconst norm = t => (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')\n  .replace(/[^a-z0-9 ]/g, ' ').replace(/\\s+/g, ' ').trim();\nconst titulos = new Set(existentes.map(e => norm(e.titulo)));\nconst salida = [];\nfor (const it of $input.all()) {\n  const j = it.json || {};\n  const enlace = (j.link || '').trim();\n  let titulo = (j.title || '').trim();\n  let fuente = '';\n  const m = titulo.match(/^(.*) - ([^-]+)$/);           // Google Noticias: \"Título - Medio\"\n  if (m) { titulo = m[1].trim(); fuente = m[2].trim(); }\n  const resumen = (j.contentSnippet || j.content || '').replace(/<[^>]*>/g, ' ')\n    .replace(/&nbsp;/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 600);\n  const fecha = new Date(j.isoDate || j.pubDate);\n  if (!enlace || !titulo || !fuente || isNaN(fecha)) continue;   // sin fuente verificable no hay alerta\n  const nt = norm(titulo);\n  if (enlaces.has(enlace) || titulos.has(nt)) continue;\n  enlaces.add(enlace); titulos.add(nt);\n  salida.push({ json: { titulo, resumen, enlace, fuente, fecha_publicacion: fecha.toISOString() } });\n}\nsalida.sort((a, b) => new Date(b.json.fecha_publicacion) - new Date(a.json.fecha_publicacion));\nconst elegidas = salida.slice(0, 12);\nreturn elegidas.length ? elegidas : [{ json: { sin_noticias: true } }];\n"
+      },
+      "id": "062f2acc-3d18-59c7-b6d0-299133a336fc",
+      "name": "Limpiar y quitar duplicados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e1c75541-bd7b-57d7-ada6-9d1a99adcf93",
+              "leftValue": "={{ !!$json.enlace }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bc071260-d04d-5dc9-bce6-02d0116421c4",
+      "name": "¿Hay noticias nuevas?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2000,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "a2cfe7dd-84e9-5423-b0d5-07e94794c971",
+      "name": "Una por una",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-flash-lite-latest",
+          "mode": "list",
+          "cachedResultName": "Gemini Flash-Lite Latest"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Eres analista del mercado de cacao para {{ $('Empresa activa').first().json.nombre }}, cooperativa de Tumaco (Nariño, Colombia) que compra cacao a pequeños productores. Colombia es tomadora de precio: la referencia es la bolsa de Nueva York, y la oferta africana (Costa de Marfil y Ghana) la mueve.\n\nEvalúa la noticia y responde SOLO con JSON válido, sin texto adicional:\n{\"relevante\": true o false,\n \"driver\": \"precio_internacional|oferta_africana|clima|demanda|regulacion_mercado|entorno_local\",\n \"tipo_evento\": \"{{ $('Reglas').all().map(i => i.json.tipo_evento).filter(Boolean).join('|') }}\",\n \"efecto_precio\": \"sube|baja|neutral\",\n \"area\": \"{{ $('Áreas').all().map(i => i.json.nombre).filter(Boolean).join('|') }}\",\n \"probabilidad\": 1 a 5,\n \"impacto\": 1 a 5,\n \"resumen_es\": \"una frase en español con el hecho principal\",\n \"explicacion\": \"máximo 2 frases: por qué importa para la compra de cacao de la cooperativa\"}\n\nGuía de drivers:\n- precio_internacional: bolsa de Nueva York o Londres, futuros, precios récord.\n- oferta_africana: cosechas, llegadas a puerto, precio oficial de Costa de Marfil o Ghana.\n- clima: lluvias, sequía, El Niño o La Niña en África o en el Pacífico colombiano.\n- demanda: molienda, inventarios, consumo de chocolate.\n- regulacion_mercado: EUDR, límites de cadmio, aranceles, certificaciones.\n- entorno_local: TRM, orden público, paros o vías en Tumaco y Nariño, costos locales.\n\nefecto_precio es el efecto esperado sobre el precio internacional del cacao (sube, baja o neutral).\nrelevante es true solo si la noticia puede afectar el precio del cacao, la oferta, la demanda o la operación de compra de la cooperativa en los próximos 12 meses.\nprobabilidad: qué tan probable es que el hecho afecte a la cooperativa. impacto: qué tan grave sería.\nNo inventes datos que no estén en la noticia.\n\nNOTICIA\nTítulo: {{ $json.titulo }}\nResumen: {{ $json.resumen }}\nFuente: {{ $json.fuente }}\nFecha: {{ $json.fecha_publicacion }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "462a18f3-d5fd-5806-9bb0-df41fa459f42",
+      "name": "Clasificar con Gemini",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        2460,
+        80
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Valida la respuesta de Gemini y calcula puntaje = probabilidad × impacto.\nconst DRIVERS = ['precio_internacional', 'oferta_africana', 'clima', 'demanda', 'regulacion_mercado', 'entorno_local'];\nconst EFECTOS = ['sube', 'baja', 'neutral'];\nconst AREAS = $('Áreas').all().map(i => i.json.nombre).filter(Boolean);\nconst reglas = $('Reglas').all().map(i => i.json).filter(r => r.tipo_evento);\nconst TIPOS = reglas.map(r => r.tipo_evento);\nconst EMPRESA_ID = $('Empresa activa').first().json.id;\n\nconst base = {\n  ...$('Limpiar y quitar duplicados').item.json,\n  empresa_id: EMPRESA_ID,\n  origen: 'n8n',\n  decision: 'pendiente'\n};\nconst j = $input.item.json;\n\n// 1) Límite de uso o caída de Gemini: no se guarda; se reintenta en la próxima ejecución.\nconst textoError = JSON.stringify(j.error || '').toLowerCase();\nif (j.error && /too many|429|quota|rate|resource_exhausted|overloaded|unavailable|503|500|timeout/.test(textoError)) {\n  return { json: { ...base, relevante: false, motivo: 'limite_gemini' } };\n}\n\n// 2) Extraer el JSON aunque venga con texto alrededor.\nlet txt = j.content?.parts?.[0]?.text ?? j.output ?? j.text ?? '';\ntxt = String(txt).replace(/```json|```/g, '').trim();\nconst m = txt.match(/\\{[\\s\\S]*\\}/);\nlet r = null;\ntry { r = JSON.parse(m ? m[0] : txt); } catch (e) {}\n\n// 3) No relevante: se descarta.\nif (r && (r.relevante === false || r.relevante === 'false')) {\n  return { json: { ...base, relevante: false, motivo: 'no_relevante' } };\n}\n\n// 4) Respuesta incompleta: se guarda sin clasificar para que el analista la revise.\nconst escala = v => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= 1 && n <= 5 ? n : null; };\nconst p = r ? escala(r.probabilidad) : null;\nconst i = r ? escala(r.impacto) : null;\nconst driver = r && DRIVERS.includes(r.driver) ? r.driver : null;\nif (!r || j.error || p === null || i === null || driver === null) {\n  return { json: { ...base, relevante: true, estado: 'sin_clasificar',\n    factor: driver, efecto_precio: r && EFECTOS.includes(r.efecto_precio) ? r.efecto_precio : null,\n    explicacion: 'Gemini no devolvió una clasificación completa; revisar manualmente.' } };\n}\n\nconst tipo = TIPOS.includes(r.tipo_evento) ? r.tipo_evento : 'otro';\nconst regla = reglas.find(x => x.tipo_evento === tipo);\nconst area = AREAS.includes(r.area) ? r.area : (regla?.area_responsable || AREAS[0] || null);\nconst puntaje = p * i;\n\nreturn { json: {\n  ...base,\n  relevante: true,\n  estado: 'pendiente',\n  factor: driver,\n  tipo_evento: tipo,\n  area,\n  efecto_precio: EFECTOS.includes(r.efecto_precio) ? r.efecto_precio : 'neutral',\n  probabilidad: p,\n  impacto: i,\n  puntaje,\n  nivel: puntaje >= 15 ? 'Alto' : puntaje >= 8 ? 'Medio' : 'Bajo',\n  prioritaria: puntaje >= 15,\n  resumen: (r.resumen_es || base.resumen || '').slice(0, 600),\n  explicacion: (r.explicacion || '').slice(0, 600)\n}};\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "316891b5-9cf8-5f3b-a213-ab309ff54958",
+      "name": "Validar y puntuar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2680,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "086c261f-20a9-57c9-af8e-239a6976adef",
+              "leftValue": "={{ $json.relevante }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b85bc509-ca63-5b3d-9af9-436e5cf190e3",
+      "name": "¿Es relevante?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2900,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "alertas",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "prioritaria",
+              "fieldValue": "={{ $json.prioritaria ?? false }}"
+            },
+            {
+              "fieldId": "titulo",
+              "fieldValue": "={{ $json.titulo ?? null }}"
+            },
+            {
+              "fieldId": "resumen",
+              "fieldValue": "={{ $json.resumen ?? null }}"
+            },
+            {
+              "fieldId": "enlace",
+              "fieldValue": "={{ $json.enlace ?? null }}"
+            },
+            {
+              "fieldId": "fuente",
+              "fieldValue": "={{ $json.fuente ?? null }}"
+            },
+            {
+              "fieldId": "fecha_publicacion",
+              "fieldValue": "={{ $json.fecha_publicacion ?? null }}"
+            },
+            {
+              "fieldId": "factor",
+              "fieldValue": "={{ $json.factor ?? null }}"
+            },
+            {
+              "fieldId": "area",
+              "fieldValue": "={{ $json.area ?? null }}"
+            },
+            {
+              "fieldId": "tipo_evento",
+              "fieldValue": "={{ $json.tipo_evento ?? null }}"
+            },
+            {
+              "fieldId": "efecto_precio",
+              "fieldValue": "={{ $json.efecto_precio ?? null }}"
+            },
+            {
+              "fieldId": "probabilidad",
+              "fieldValue": "={{ $json.probabilidad ?? null }}"
+            },
+            {
+              "fieldId": "impacto",
+              "fieldValue": "={{ $json.impacto ?? null }}"
+            },
+            {
+              "fieldId": "puntaje",
+              "fieldValue": "={{ $json.puntaje ?? null }}"
+            },
+            {
+              "fieldId": "nivel",
+              "fieldValue": "={{ $json.nivel ?? null }}"
+            },
+            {
+              "fieldId": "estado",
+              "fieldValue": "={{ $json.estado ?? null }}"
+            },
+            {
+              "fieldId": "decision",
+              "fieldValue": "={{ $json.decision ?? null }}"
+            },
+            {
+              "fieldId": "origen",
+              "fieldValue": "={{ $json.origen ?? null }}"
+            },
+            {
+              "fieldId": "explicacion",
+              "fieldValue": "={{ $json.explicacion ?? null }}"
+            },
+            {
+              "fieldId": "empresa_id",
+              "fieldValue": "={{ $json.empresa_id ?? null }}"
+            }
+          ]
+        }
+      },
+      "id": "7208d73c-7d32-5b90-a03c-7fe5e8afa1bb",
+      "name": "Guardar alerta",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3120,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 5
+      },
+      "id": "0b557849-49d2-5fdc-be84-397eae4bfe0a",
+      "name": "Pausa (límite de Gemini)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3340,
+        80
+      ],
+      "webhookId": "380c23f2-f583-5ece-b070-4597ea5c7ac6"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cf86b795-133b-50cb-a994-a0407929ae14",
+              "name": "flujo",
+              "value": "noticias",
+              "type": "string"
+            },
+            {
+              "id": "033176c8-8960-58eb-9bc1-a08c584c98eb",
+              "name": "fuente",
+              "value": "Google Noticias RSS + Gemini",
+              "type": "string"
+            },
+            {
+              "id": "ad402037-93a3-5b71-a799-ac5652a2b868",
+              "name": "inicio",
+              "value": "={{ $('Armar búsquedas').first().json.inicio }}",
+              "type": "string"
+            },
+            {
+              "id": "5ee87172-75f1-5545-9f4f-7c7acbf6ec19",
+              "name": "fin",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "9d142bce-e8ff-575e-bdc1-a1f65c9c1f1a",
+              "name": "estado",
+              "value": "ok",
+              "type": "string"
+            },
+            {
+              "id": "850c406a-f3ca-5067-b662-e0ce43649757",
+              "name": "registros_nuevos",
+              "value": "={{ $('Guardar alerta').isExecuted ? $('Guardar alerta').all().filter(i => i.json.id).length : 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "13351e02-7065-508d-9acb-0f2c081d1404",
+              "name": "empresa_id",
+              "value": "={{ $('Empresa activa').first().json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8dfdc718-0f0a-570c-b37d-a75791782bb3",
+      "name": "Armar registro",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2460,
+        -160
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "tableId": "ejecuciones",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "flujo",
+              "fieldValue": "={{ $json.flujo }}"
+            },
+            {
+              "fieldId": "fuente",
+              "fieldValue": "={{ $json.fuente }}"
+            },
+            {
+              "fieldId": "inicio",
+              "fieldValue": "={{ $json.inicio }}"
+            },
+            {
+              "fieldId": "fin",
+              "fieldValue": "={{ $json.fin }}"
+            },
+            {
+              "fieldId": "estado",
+              "fieldValue": "={{ $json.estado }}"
+            },
+            {
+              "fieldId": "registros_nuevos",
+              "fieldValue": "={{ $json.registros_nuevos }}"
+            },
+            {
+              "fieldId": "empresa_id",
+              "fieldValue": "={{ $json.empresa_id }}"
+            }
+          ]
+        }
+      },
+      "id": "3927ee64-8e4b-5520-af07-31eb31a3d62a",
+      "name": "Registrar ejecución",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2680,
+        -160
+      ]
+    }
+  ],
+  "connections": {
+    "Cada 6 horas": {
+      "main": [
+        [
+          {
+            "node": "Empresa activa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Botón de la app": {
+      "main": [
+        [
+          {
+            "node": "Empresa activa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empresa activa": {
+      "main": [
+        [
+          {
+            "node": "Consultas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultas": {
+      "main": [
+        [
+          {
+            "node": "Áreas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Áreas": {
+      "main": [
+        [
+          {
+            "node": "Reglas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reglas": {
+      "main": [
+        [
+          {
+            "node": "Alertas existentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alertas existentes": {
+      "main": [
+        [
+          {
+            "node": "Armar búsquedas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar búsquedas": {
+      "main": [
+        [
+          {
+            "node": "Leer RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer RSS": {
+      "main": [
+        [
+          {
+            "node": "Limpiar y quitar duplicados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar y quitar duplicados": {
+      "main": [
+        [
+          {
+            "node": "¿Hay noticias nuevas?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay noticias nuevas?": {
+      "main": [
+        [
+          {
+            "node": "Una por una",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Una por una": {
+      "main": [
+        [
+          {
+            "node": "Armar registro",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Clasificar con Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificar con Gemini": {
+      "main": [
+        [
+          {
+            "node": "Validar y puntuar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar y puntuar": {
+      "main": [
+        [
+          {
+            "node": "¿Es relevante?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es relevante?": {
+      "main": [
+        [
+          {
+            "node": "Guardar alerta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pausa (límite de Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar alerta": {
+      "main": [
+        [
+          {
+            "node": "Pausa (límite de Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa (límite de Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Una por una",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar registro": {
+      "main": [
+        [
+          {
+            "node": "Registrar ejecución",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

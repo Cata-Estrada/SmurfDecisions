@@ -60,22 +60,19 @@ export default function CentroActualizaciones() {
     setResultadoEjecucion(null);
     try {
       const idMinimo = await getUltimoIdEjecucion(empresaId);
-      await ejecutarFlujosN8n();
-      setResultadoEjecucion({
-        tipo: 'pending',
-        texto: 'Webhook aceptado. Esperando los registros de los tres flujos en Supabase…',
-        ejecuciones: []
-      });
+      const respuesta = await ejecutarFlujosN8n();
+      const flujos = respuesta?.iniciados?.length ? respuesta.iniciados : ['noticias', 'precios'];
+      const fallidos = (respuesta?.results || []).filter((r) => !r.ok);
+      const esperando = `n8n recibió la orden (${flujos.join(' y ')}). Esperando sus registros en Supabase; las noticias tardan unos minutos…`
+        + (fallidos.length ? ` No se pudo iniciar: ${fallidos.map((r) => `${r.flujo} (${r.message})`).join(', ')}.` : '');
+      setResultadoEjecucion({ tipo: 'pending', texto: esperando, ejecuciones: [] });
 
       const resultado = await esperarEjecucionN8n({
         idMinimo,
         empresaId,
+        flujos,
         onActualizacion: (ejecuciones) => {
-          setResultadoEjecucion({
-            tipo: 'pending',
-            texto: 'Webhook aceptado. Esperando los registros de los tres flujos en Supabase…',
-            ejecuciones
-          });
+          setResultadoEjecucion({ tipo: 'pending', texto: esperando, ejecuciones });
         }
       });
       const huboErrores = resultado.ejecuciones.some((ejecucion) => ejecucion?.estado !== 'ok');
@@ -83,11 +80,11 @@ export default function CentroActualizaciones() {
         tipo: resultado.timedOut ? 'warning' : huboErrores ? 'error' : 'success',
         texto: resultado.timedOut
           ? resultado.ejecucionesObservadas?.length
-            ? 'Se agotó el tiempo. Supabase recibió registros, pero sus valores de “flujo” no coinciden con los tres nombres esperados.'
-            : 'Se agotó el tiempo y no aparecieron registros nuevos en ejecuciones. Revisa que el webhook active los flujos y que cada uno inserte su fila al finalizar.'
+            ? 'Se agotó el tiempo. Supabase recibió registros, pero no de todos los flujos esperados. Revisa las ejecuciones en n8n.'
+            : 'Se agotó el tiempo y no aparecieron registros nuevos. Revisa en n8n que los flujos estén activos y terminen sin error.'
           : huboErrores
-          ? 'Los tres flujos terminaron, pero al menos uno registró un error.'
-          : 'Los tres flujos terminaron correctamente y sus resultados ya están en Supabase.',
+          ? 'Los flujos terminaron, pero al menos uno registró un error.'
+          : 'Los flujos terminaron correctamente. Las noticias nuevas ya están en la bandeja.',
         ejecuciones: resultado.ejecuciones,
         ejecucionesObservadas: resultado.ejecucionesObservadas || []
       });
@@ -230,7 +227,7 @@ export default function CentroActualizaciones() {
             <div className="text-2xl font-bold text-slate-900 mt-0.5">
               {(Array.isArray(fuentes) ? fuentes : []).length}
             </div>
-            <span className="text-[11px] text-slate-400">3 macro + 5 feeds RSS</span>
+            <span className="text-[11px] text-slate-400">Bolsa, TRM y noticias</span>
           </div>
         </div>
 
@@ -243,7 +240,9 @@ export default function CentroActualizaciones() {
             <div className="text-2xl font-bold text-emerald-600 mt-0.5">
               {(Array.isArray(ejecuciones) ? ejecuciones : []).filter((e) => e.estado === 'ok').length}
             </div>
-            <span className="text-[11px] text-slate-400">Sin fallos críticos reportados</span>
+            <span className="text-[11px] text-slate-400">
+              {(Array.isArray(ejecuciones) ? ejecuciones : []).filter((e) => e.estado === 'error').length} con error
+            </span>
           </div>
         </div>
 
@@ -253,8 +252,8 @@ export default function CentroActualizaciones() {
           </div>
           <div>
             <span className="text-xs text-slate-500 font-medium">Frecuencia de Captura</span>
-            <div className="text-sm font-bold text-slate-800 mt-1">TRM (24h) &bull; RSS (6h)</div>
-            <span className="text-[11px] text-slate-400">n8n Cloud Scheduler</span>
+            <div className="text-sm font-bold text-slate-800 mt-1">Noticias cada 6 h &bull; Precios L–V 6 p. m.</div>
+            <span className="text-[11px] text-slate-400">Programados en n8n</span>
           </div>
         </div>
       </div>

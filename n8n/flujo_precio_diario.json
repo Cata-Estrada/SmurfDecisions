@@ -1,0 +1,495 @@
+{
+  "name": "Precio diario del cacao y TRM",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "564404a5-6455-54a0-acce-d6d52c1a53a1",
+      "name": "Lunes a viernes 6 p. m.",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cacao-precios",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2df8be3b-81e9-56a3-8e89-9d7e98eff862",
+      "name": "Botón de la app",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "7e418ced-ebe4-585a-a528-7fce4ad23223"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "empresas",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "activo",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        }
+      },
+      "id": "ecd3d4f4-6650-51bf-bac1-1624d79358d3",
+      "name": "Empresa activa",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        240,
+        100
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a6a45fb9-5b2a-5d8e-80fb-15ef1da48176",
+              "name": "inicio",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9044fe00-8884-5e6e-8843-fb44a464f1f7",
+      "name": "Marcar inicio",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        100
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "url": "https://query1.finance.yahoo.com/v8/finance/chart/CC=F",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "range",
+              "value": "5d"
+            },
+            {
+              "name": "interval",
+              "value": "1d"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "44e5f08b-81af-5f08-a4f6-c2759d556e4b",
+      "name": "Bolsa Nueva York (Yahoo)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        100
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "https://www.datos.gov.co/resource/32sa-8pi3.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "$where",
+              "value": "=vigenciadesde <= '{{ $now.setZone('America/Bogota').toFormat('yyyy-MM-dd') }}T00:00:00.000'"
+            },
+            {
+              "name": "$order",
+              "value": "vigenciadesde DESC"
+            },
+            {
+              "name": "$limit",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "23af5e20-51eb-5c9b-b6f8-78f8eb52b331",
+      "name": "TRM oficial",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        100
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Toma el último cierre de Yahoo (CC=F) y la TRM vigente, y arma una fila por indicador.\nconst fechaBogota = ms => new Date(ms - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);\nconst filas = [];\nconst errores = [];\n\ntry {\n  const r = $('Bolsa Nueva York (Yahoo)').first().json.chart.result[0];\n  const tiempos = r.timestamp || [];\n  const cierres = r.indicators.quote[0].close || [];\n  for (let k = tiempos.length - 1; k >= 0; k--) {\n    if (Number(cierres[k]) > 0) {\n      filas.push({ indicador_codigo: 'CACAO_NY', fecha: fechaBogota(tiempos[k] * 1000),\n        valor: Number(cierres[k]), fuente: 'Yahoo Finance · CC=F' });\n      break;\n    }\n  }\n  if (!filas.length) errores.push('Yahoo no devolvió cierres');\n} catch (e) { errores.push('Yahoo: ' + e.message); }\n\ntry {\n  const t = $('TRM oficial').first().json;\n  const valor = Number(t.valor);\n  if (valor > 0) {\n    filas.push({ indicador_codigo: 'TRM', fecha: String(t.vigenciadesde).slice(0, 10),\n      valor, fuente: 'Superintendencia Financiera · datos.gov.co' });\n  } else errores.push('TRM sin valor');\n} catch (e) { errores.push('TRM: ' + e.message); }\n\nreturn filas.length\n  ? filas.map(f => ({ json: { ...f, errores: errores.join('; ') } }))\n  : [{ json: { sin_datos: true, errores: errores.join('; ') } }];\n"
+      },
+      "id": "51d1335a-f5e5-57eb-beff-06c02947bfa3",
+      "name": "Armar valores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "44724613-93cc-5a7c-9c2c-0b789f210b10",
+              "leftValue": "={{ !$json.sin_datos }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "abe824eb-7ee6-53be-abf7-1dfc40c286f2",
+      "name": "¿Hay datos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1340,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "valores_indicador",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "indicador_codigo",
+              "fieldValue": "={{ $json.indicador_codigo }}"
+            },
+            {
+              "fieldId": "fecha",
+              "fieldValue": "={{ $json.fecha }}"
+            },
+            {
+              "fieldId": "valor",
+              "fieldValue": "={{ $json.valor }}"
+            },
+            {
+              "fieldId": "fuente",
+              "fieldValue": "={{ $json.fuente }}"
+            }
+          ]
+        }
+      },
+      "id": "d6b4a021-6ca4-56ae-920e-2255c8091955",
+      "name": "Guardar valor",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4ece3eec-ebd6-5f20-9a28-d9cc8ed4ef4a",
+              "name": "flujo",
+              "value": "precios",
+              "type": "string"
+            },
+            {
+              "id": "ff1575be-248e-52cd-be34-6988d33072b1",
+              "name": "fuente",
+              "value": "Yahoo Finance (CC=F) + Superintendencia Financiera (TRM)",
+              "type": "string"
+            },
+            {
+              "id": "8f8bc812-0583-584e-ad4c-8ddf27ba88c2",
+              "name": "inicio",
+              "value": "={{ $('Marcar inicio').first().json.inicio }}",
+              "type": "string"
+            },
+            {
+              "id": "c9e5c2d7-b033-5ca3-ac3b-3dcaf90a270a",
+              "name": "fin",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "3a8c6a31-7c5a-5d4b-910b-9c948f91c5fc",
+              "name": "estado",
+              "value": "={{ $('Armar valores').first().json.sin_datos ? 'error' : 'ok' }}",
+              "type": "string"
+            },
+            {
+              "id": "895ea964-38d4-5bf2-9915-f9b34a8453d1",
+              "name": "registros_nuevos",
+              "value": "={{ $('Guardar valor').isExecuted ? $('Guardar valor').all().filter(i => i.json.id).length : 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "16623c8a-3fec-5d61-891d-a359bb144e2f",
+              "name": "mensaje_error",
+              "value": "={{ $('Armar valores').first().json.errores || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "198ee0e9-2f38-5c85-a16c-04a9db9534f4",
+              "name": "empresa_id",
+              "value": "={{ $('Empresa activa').first().json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8dfdc718-0f0a-570c-b37d-a75791782bb3",
+      "name": "Armar registro",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1780,
+        100
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "tableId": "ejecuciones",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "flujo",
+              "fieldValue": "={{ $json.flujo }}"
+            },
+            {
+              "fieldId": "fuente",
+              "fieldValue": "={{ $json.fuente }}"
+            },
+            {
+              "fieldId": "inicio",
+              "fieldValue": "={{ $json.inicio }}"
+            },
+            {
+              "fieldId": "fin",
+              "fieldValue": "={{ $json.fin }}"
+            },
+            {
+              "fieldId": "estado",
+              "fieldValue": "={{ $json.estado }}"
+            },
+            {
+              "fieldId": "registros_nuevos",
+              "fieldValue": "={{ $json.registros_nuevos }}"
+            },
+            {
+              "fieldId": "mensaje_error",
+              "fieldValue": "={{ $json.mensaje_error }}"
+            },
+            {
+              "fieldId": "empresa_id",
+              "fieldValue": "={{ $json.empresa_id }}"
+            }
+          ]
+        }
+      },
+      "id": "3927ee64-8e4b-5520-af07-31eb31a3d62a",
+      "name": "Registrar ejecución",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Lunes a viernes 6 p. m.": {
+      "main": [
+        [
+          {
+            "node": "Empresa activa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Botón de la app": {
+      "main": [
+        [
+          {
+            "node": "Empresa activa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empresa activa": {
+      "main": [
+        [
+          {
+            "node": "Marcar inicio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar inicio": {
+      "main": [
+        [
+          {
+            "node": "Bolsa Nueva York (Yahoo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bolsa Nueva York (Yahoo)": {
+      "main": [
+        [
+          {
+            "node": "TRM oficial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TRM oficial": {
+      "main": [
+        [
+          {
+            "node": "Armar valores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar valores": {
+      "main": [
+        [
+          {
+            "node": "¿Hay datos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay datos?": {
+      "main": [
+        [
+          {
+            "node": "Guardar valor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar valor": {
+      "main": [
+        [
+          {
+            "node": "Armar registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar registro": {
+      "main": [
+        [
+          {
+            "node": "Registrar ejecución",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

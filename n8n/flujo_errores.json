@@ -1,0 +1,126 @@
+{
+  "name": "Manejo de errores",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "f666e151-8fad-5f8d-9352-594645e93cec",
+      "name": "Cuando un flujo falla",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "empresas",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "activo",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        }
+      },
+      "id": "ecd3d4f4-6650-51bf-bac1-1624d79358d3",
+      "name": "Empresa activa",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "tableId": "ejecuciones",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "flujo",
+              "fieldValue": "={{ $('Cuando un flujo falla').first().json.workflow.name.toLowerCase().includes('noticia') ? 'noticias' : 'precios' }}"
+            },
+            {
+              "fieldId": "fuente",
+              "fieldValue": "n8n"
+            },
+            {
+              "fieldId": "inicio",
+              "fieldValue": "={{ $now.toISO() }}"
+            },
+            {
+              "fieldId": "fin",
+              "fieldValue": "={{ $now.toISO() }}"
+            },
+            {
+              "fieldId": "estado",
+              "fieldValue": "error"
+            },
+            {
+              "fieldId": "registros_nuevos",
+              "fieldValue": "0"
+            },
+            {
+              "fieldId": "mensaje_error",
+              "fieldValue": "={{ (($('Cuando un flujo falla').first().json.execution.lastNodeExecuted || 'n8n') + ': ' + ($('Cuando un flujo falla').first().json.execution.error?.message || 'error desconocido')).slice(0, 500) }}"
+            },
+            {
+              "fieldId": "empresa_id",
+              "fieldValue": "={{ $('Empresa activa').first().json.id }}"
+            }
+          ]
+        }
+      },
+      "id": "663ce55a-f347-556a-a772-efbb57bbdf14",
+      "name": "Registrar error",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Cuando un flujo falla": {
+      "main": [
+        [
+          {
+            "node": "Empresa activa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empresa activa": {
+      "main": [
+        [
+          {
+            "node": "Registrar error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
