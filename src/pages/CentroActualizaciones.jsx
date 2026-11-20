@@ -300,7 +300,7 @@ export default function CentroActualizaciones() {
                     </span>
                   </td>
                   <td className="py-3 px-4 text-slate-600">
-                    Cada {f.frecuencia_horas} horas {f.frecuencia_horas === 24 ? '(Diaria)' : f.frecuencia_horas === 720 ? '(Mensual)' : ''}
+                    {!f.frecuencia_horas ? 'En vivo (al abrir la app)' : `Cada ${f.frecuencia_horas} horas ${f.frecuencia_horas === 24 ? '(diaria)' : ''}`}
                   </td>
                   <td className="py-3 px-4">
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">

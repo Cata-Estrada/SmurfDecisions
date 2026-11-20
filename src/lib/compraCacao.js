@@ -253,7 +253,11 @@ export function calcularCompraCacao(configuracion, calidades, precioReferencia, 
     bolsaMaximaUsdT,
     nivelPrecio,
     recomendacion: regla
-      ? { titulo: regla.titulo, recomendacion: regla.recomendacion, semaforo: regla.semaforo }
+      ? {
+          titulo: regla.titulo,
+          recomendacion: regla.recomendacion.replace(/ de esta calidad/gi, ''),
+          semaforo: regla.semaforo
+        }
       : null
   };
 }

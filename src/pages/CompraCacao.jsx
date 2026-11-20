@@ -278,14 +278,14 @@ export default function CompraCacao() {
                 : `US$ ${mostrarNumero(precioActual)} / t · futuro ICE`}
             </strong>
           </span>
-          {mercado.ultimo && (
+          {cotizacionMercado?.quote?.timestamp && (
             <span className="inline-flex items-center gap-1">
               <Clock3 className="h-3.5 w-3.5" />
               Última cotización: {new Intl.DateTimeFormat('es-CO', {
                 dateStyle: 'medium',
                 timeStyle: 'short',
                 timeZone: 'America/Bogota'
-              }).format(new Date(mercado.ultimo.observado_en))}
+              }).format(new Date(cotizacionMercado.quote.timestamp))}
             </span>
           )}
           {cambioDiarioPct !== null && (
