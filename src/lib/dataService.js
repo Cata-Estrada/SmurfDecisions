@@ -351,3 +351,109 @@ export async function getPrecioCacaoMercado({ includeTrm = true } = {}) {
   }
   return data;
 }
+
+export async function guardarReglaCompra(empresaId, regla) {
+  requireEmpresa(empresaId);
+  const { data, error } = await supabase
+    .from('reglas_compra')
+    .update({
+      titulo: regla.titulo,
+      recomendacion: regla.recomendacion,
+      semaforo: regla.semaforo
+    })
+    .eq('empresa_id', empresaId)
+    .eq('nivel_precio', regla.nivel_precio)
+    .eq('cobertura', regla.cobertura)
+    .select()
+    .maybeSingle();
+
+  throwIfError(error, 'No se pudo guardar la regla de compra');
+  if (!data) throw new Error('La regla no existe o tu rol no permite modificarla (solo Gerente).');
+  return data;
+}
+
+// ── Caja ───────────────────────────────────────────────────────────────────────
+export async function getHistorialCaja(empresaId, limite = 20) {
+  requireEmpresa(empresaId);
+  const { data, error } = await supabase
+    .from('caja')
+    .select('*')
+    .eq('empresa_id', empresaId)
+    .order('fecha', { ascending: false })
+    .order('creado_en', { ascending: false })
+    .limit(limite);
+
+  throwIfError(error, 'No se pudo consultar el historial de caja');
+  return data || [];
+}
+
+export async function registrarCajaConFecha(empresaId, usuarioId, { fecha, disponible_cop, nota }) {
+  requireEmpresa(empresaId);
+  const { data, error } = await supabase
+    .from('caja')
+    .insert({ empresa_id: empresaId, fecha, disponible_cop, nota: nota || null, registrado_por: usuarioId })
+    .select()
+    .single();
+
+  throwIfError(error, 'No se pudo registrar la caja');
+  return data;
+}
+
+// ── Plan de compras ────────────────────────────────────────────────────────────
+export async function getPlanCompras(empresaId) {
+  requireEmpresa(empresaId);
+  const { data, error } = await supabase
+    .from('plan_compras')
+    .select('*')
+    .eq('empresa_id', empresaId)
+    .order('fecha_objetivo');
+
+  throwIfError(error, 'No se pudo consultar el plan de compras');
+  return data || [];
+}
+
+export async function guardarTramoPlan(empresaId, tramo) {
+  requireEmpresa(empresaId);
+  const fila = {
+    empresa_id: empresaId,
+    calidad_id: tramo.calidad_id,
+    fecha_objetivo: tramo.fecha_objetivo,
+    volumen_kg: tramo.volumen_kg,
+    estado: tramo.estado || 'planeado',
+    notas: tramo.notas || null
+  };
+  const consulta = tramo.id
+    ? supabase.from('plan_compras').update(fila).eq('id', tramo.id).eq('empresa_id', empresaId)
+    : supabase.from('plan_compras').insert(fila);
+  const { data, error } = await consulta.select().single();
+
+  throwIfError(error, 'No se pudo guardar el tramo del plan de compras');
+  return data;
+}
+
+export async function eliminarTramoPlan(empresaId, id) {
+  requireEmpresa(empresaId);
+  const { error } = await supabase
+    .from('plan_compras')
+    .delete()
+    .eq('id', id)
+    .eq('empresa_id', empresaId);
+
+  throwIfError(error, 'No se pudo eliminar el tramo');
+}
+
+// ── Precio diario (indicadores globales) ───────────────────────────────────────
+export async function registrarValorIndicador({ codigo, fecha, valor, fuente }) {
+  if (!isSupabaseConfigured || !supabase) throw new Error('Supabase no está configurado.');
+  const { data, error } = await supabase
+    .from('valores_indicador')
+    .upsert(
+      { indicador_codigo: codigo, fecha, valor, fuente },
+      { onConflict: 'indicador_codigo,fecha' }
+    )
+    .select()
+    .single();
+
+  throwIfError(error, `No se pudo registrar el valor de ${codigo}`);
+  return data;
+}

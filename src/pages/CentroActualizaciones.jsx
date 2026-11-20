@@ -15,6 +15,7 @@ import {
 import { getFuentes, getEjecuciones, getUltimoIdEjecucion } from '../lib/dataService';
 import { ejecutarFlujosN8n, esperarEjecucionN8n } from '../lib/n8nService';
 import { useAuth } from '../lib/authContext';
+import CargaDatosCompra from '../components/CargaDatosCompra';
 
 export default function CentroActualizaciones() {
   const { empresaId, permisos } = useAuth();
@@ -134,7 +135,7 @@ export default function CentroActualizaciones() {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-              Centro de Actualizaciones y Auditoría de Automatización
+              Centro de actualizaciones
             </h2>
             {origenDatos === 'supabase' ? (
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
@@ -147,7 +148,7 @@ export default function CentroActualizaciones() {
             )}
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Monitoreo en tiempo real del estado de los flujos de n8n, fuentes externas e historial de ejecuciones.
+            Carga de caja, plan de compras y precio diario; estado de los flujos de n8n y de las fuentes.
           </p>
         </div>
 
@@ -215,6 +216,8 @@ export default function CentroActualizaciones() {
           )}
         </div>
       )}
+
+      <CargaDatosCompra />
 
       {/* Resumen de Estado de la Automatización */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">

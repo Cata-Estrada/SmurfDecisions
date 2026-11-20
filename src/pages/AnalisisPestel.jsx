@@ -1,324 +1,170 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Compass,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  ExternalLink,
-  ChevronRight,
-  ShieldAlert,
-  Calendar,
-  Building
-} from 'lucide-react';
+// ==============================================================================
+// Matriz de drivers del cacao · Coagropacífico
+// Seis drivers que reemplazan a los factores PESTEL como núcleo del análisis;
+// la equivalencia con PESTEL se conserva como referencia.
+// ==============================================================================
+import React, { useEffect, useMemo, useState } from 'react';
+import { ExternalLink, Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { getAlertas } from '../lib/dataService';
 import { useAuth } from '../lib/authContext';
-import { FACTORES } from '../lib/catalogos';
+import { DRIVERS, EFECTOS_PRECIO, nombreTipoEvento } from '../lib/catalogos';
 import { formatearFechaPublicacion } from '../lib/fechas';
-import { calcularPuntaje, normalizarValorEscala } from '../lib/puntaje';
 import NivelBadge from '../components/NivelBadge';
-import OrigenBadge from '../components/OrigenBadge';
 
-const ESTILOS_FACTOR = {
-  Político: { inicial: 'P', color: '#102A56', activo: 'border-blue-500 ring-2 ring-blue-500/20' },
-  Económico: { inicial: 'E', color: '#174A8B', activo: 'border-blue-500 ring-2 ring-blue-500/20' },
-  Social: { inicial: 'S', color: '#2166B1', activo: 'border-blue-500 ring-2 ring-blue-500/20' },
-  Tecnológico: { inicial: 'T', color: '#347FC4', activo: 'border-blue-500 ring-2 ring-blue-500/20' },
-  Ecológico: { inicial: 'E', color: '#579DDA', activo: 'border-blue-500 ring-2 ring-blue-500/20' },
-  Legal: { inicial: 'L', color: '#82B9E8', activo: 'border-blue-500 ring-2 ring-blue-500/20' }
-};
+function nivelPorPuntaje(puntaje) {
+  if (puntaje >= 15) return 'Alto';
+  if (puntaje >= 8) return 'Medio';
+  return 'Bajo';
+}
+
+function Presion({ sube, baja }) {
+  if (sube === 0 && baja === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+        <Minus className="h-3 w-3" /> Sin presión
+      </span>
+    );
+  }
+  if (sube > baja) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+        <TrendingUp className="h-3 w-3" /> Presión al alza
+      </span>
+    );
+  }
+  if (baja > sube) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-900">
+        <TrendingDown className="h-3 w-3" /> Presión a la baja
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+      <Minus className="h-3 w-3" /> Señales mixtas
+    </span>
+  );
+}
 
 export default function AnalisisPestel() {
-  const { empresa, empresaId, sector } = useAuth();
+  const { empresaId } = useAuth();
   const [alertas, setAlertas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
-  const [factorActivo, setFactorActivo] = useState('Ecológico'); // Factor de mayor riesgo inicial
+  const [activo, setActivo] = useState(DRIVERS[0].codigo);
 
   useEffect(() => {
-    async function cargar() {
-      setCargando(true);
-      setError('');
-      try {
-        const { data } = await getAlertas(empresaId);
-        setAlertas(data);
-      } catch (loadError) {
-        setError(loadError.message);
-        setAlertas([]);
-      } finally {
-        setCargando(false);
-      }
-    }
-    cargar();
+    setCargando(true);
+    getAlertas(empresaId)
+      .then(({ data }) => setAlertas(data))
+      .catch((errorCarga) => setError(errorCarga.message))
+      .finally(() => setCargando(false));
   }, [empresaId]);
 
-  // Calcular métricas por factor
-  const metricasPorFactor = FACTORES.map((factor) => {
-    const alertasDelFactor = alertas.filter(
-      (a) => a.factor === factor && a.estado === 'validada'
-    );
-    const maxPuntaje = alertasDelFactor.length > 0
-      ? Math.max(...alertasDelFactor.map((a) => a.puntaje))
-      : 0;
-
-    let nivel = 'Bajo';
-    if (maxPuntaje >= 15) nivel = 'Alto';
-    else if (maxPuntaje >= 8) nivel = 'Medio';
-
-    const ordenadasPorFecha = [...alertasDelFactor].sort(
-      (a, b) => new Date(b.fecha_publicacion).getTime() - new Date(a.fecha_publicacion).getTime()
-    );
-    const mitad = Math.ceil(ordenadasPorFecha.length / 2);
-    const recientes = ordenadasPorFecha.slice(0, mitad);
-    const anteriores = ordenadasPorFecha.slice(mitad);
-    const promedio = (items) => items.length
-      ? items.reduce((suma, alerta) => suma + Number(alerta.puntaje || 0), 0) / items.length
-      : 0;
-    const diferencia = promedio(recientes) - promedio(anteriores);
-    const tendencia = anteriores.length === 0 || Math.abs(diferencia) < 0.5
-      ? 'estable'
-      : diferencia > 0 ? 'sube' : 'baja';
-    const explicacionTendencia = !alertasDelFactor.length
-      ? 'No hay alertas validadas de este factor para calcular una tendencia.'
-      : anteriores.length === 0
-      ? `Hay ${alertasDelFactor.length} alerta(s) registrada(s); se requieren más registros para comparar la evolución.`
-      : `El puntaje promedio de las ${recientes.length} alertas más recientes es ${promedio(recientes).toFixed(1)}, frente a ${promedio(anteriores).toFixed(1)} en las anteriores.`;
-
+  const metricas = useMemo(() => DRIVERS.map((driver) => {
+    const delDriver = alertas.filter((a) => a.factor === driver.codigo && a.estado === 'validada');
+    const maxPuntaje = delDriver.reduce((max, a) => Math.max(max, Number(a.puntaje) || 0), 0);
     return {
-      factor,
-      total: alertasDelFactor.length,
+      ...driver,
+      alertas: [...delDriver].sort((a, b) =>
+        new Date(b.fecha_publicacion || 0).getTime() - new Date(a.fecha_publicacion || 0).getTime()),
+      total: delDriver.length,
       maxPuntaje,
-      nivel,
-      tendencia,
-      explicacionTendencia,
-      alertas: alertasDelFactor
+      nivel: nivelPorPuntaje(maxPuntaje),
+      sube: delDriver.filter((a) => a.efecto_precio === 'sube').length,
+      baja: delDriver.filter((a) => a.efecto_precio === 'baja').length
     };
-  });
+  }), [alertas]);
 
-  const datosFactorSeleccionado = metricasPorFactor.find(
-    (m) => m.factor === factorActivo
-  ) || metricasPorFactor[0];
+  if (cargando) return <div className="p-12 text-center text-sm text-slate-500">Cargando matriz de drivers…</div>;
+  if (error) return <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>;
 
-  if (cargando) {
-    return <div className="p-12 text-center text-sm text-slate-500">Cargando análisis de la empresa…</div>;
-  }
-
-  if (error) {
-    return <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>;
-  }
-
-  const renderIconoTendencia = (tendencia) => {
-    if (tendencia === 'sube') {
-      return (
-        <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
-          <TrendingUp className="w-3.5 h-3.5" />
-          Sube (Riesgo al alza)
-        </span>
-      );
-    }
-    if (tendencia === 'baja') {
-      return (
-        <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-          <TrendingDown className="w-3.5 h-3.5" />
-          Baja
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
-        <Minus className="w-3.5 h-3.5" />
-        Estable
-      </span>
-    );
-  };
+  const seleccionado = metricas.find((m) => m.codigo === activo) || metricas[0];
 
   return (
     <div className="space-y-6">
-      {/* Encabezado */}
-      <div className="border-b border-slate-200 pb-5">
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-          Matriz de Análisis PESTEL
-        </h2>
-        <p className="text-xs text-slate-500 mt-1">
-          Estructura del entorno macro y micro para <strong>{empresa}</strong> &bull; Sector: {sector}.
+      <header className="border-b border-slate-200 pb-5">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900">Matriz de drivers del cacao</h1>
+        <p className="mt-1 max-w-3xl text-sm text-slate-600">
+          Para una cooperativa de un solo producto, seis drivers explican casi todo el movimiento del precio. Cada uno conserva su equivalencia con PESTEL.
+          El nivel es el puntaje más alto de sus alertas validadas; la presión cuenta cuántas empujan el precio al alza o a la baja.
         </p>
-      </div>
+      </header>
 
-      {/* Selector de Pestañas de los 6 Factores */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        {metricasPorFactor.map((m) => {
-          const esActivo = m.factor === factorActivo;
-          const estiloFactor = ESTILOS_FACTOR[m.factor];
-          return (
-            <button
-              key={m.factor}
-              onClick={() => setFactorActivo(m.factor)}
-              className={`rounded-lg border text-left transition-all flex overflow-hidden min-h-[96px] ${
-                esActivo
-                  ? `bg-white ${estiloFactor.activo} shadow-sm`
-                  : 'bg-white/80 border-slate-200 hover:border-slate-300 hover:bg-white'
-              }`}
-            >
-              <span
-                className="w-1/3 shrink-0 flex items-center justify-center text-6xl font-black text-white"
-                style={{ backgroundColor: estiloFactor.color }}
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+        <table className="w-full min-w-[820px] text-left text-xs">
+          <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-4 py-2">Driver</th>
+              <th className="px-4 py-2">Qué vigila</th>
+              <th className="px-4 py-2">PESTEL</th>
+              <th className="px-4 py-2">Nivel</th>
+              <th className="px-4 py-2">Presión sobre el precio</th>
+              <th className="px-4 py-2 text-right">Alertas</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {metricas.map((m) => (
+              <tr
+                key={m.codigo}
+                onClick={() => setActivo(m.codigo)}
+                className={`cursor-pointer ${m.codigo === seleccionado.codigo ? 'bg-emerald-50/60' : 'hover:bg-slate-50'}`}
               >
-                {estiloFactor.inicial}
-              </span>
-              <div className="flex-1 min-w-0 p-3 flex flex-col justify-between gap-2">
-                <div>
-                  <span className="block text-xs font-bold text-slate-700">
-                    {m.factor}
-                  </span>
-                  <NivelBadge nivel={m.nivel} puntaje={m.maxPuntaje} size="sm" />
-                </div>
-                <span className="text-[11px] text-slate-500">
-                  {m.total} hallazgo(s)
-                </span>
-              </div>
-            </button>
-          );
-        })}
+                <td className="px-4 py-3">
+                  <button type="button" onClick={() => setActivo(m.codigo)} className="text-left text-sm font-semibold text-slate-900 hover:underline">
+                    {m.nombre}
+                  </button>
+                </td>
+                <td className="px-4 py-3 text-slate-600">{m.queVigila}</td>
+                <td className="px-4 py-3 text-slate-500">{m.pestel}</td>
+                <td className="px-4 py-3">
+                  {m.total > 0 ? <NivelBadge nivel={m.nivel} puntaje={m.maxPuntaje} size="sm" /> : <span className="text-slate-400">—</span>}
+                </td>
+                <td className="px-4 py-3"><Presion sube={m.sube} baja={m.baja} /></td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-800">{m.total}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* Detalle del Factor Seleccionado */}
-      {datosFactorSeleccionado && (
-        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6 space-y-6">
-          {/* Cabecera del Factor */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-200">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Factor de Análisis
-                </span>
-                <span className="text-xs text-slate-400">&bull;</span>
-                <span className="text-xs text-slate-600">Horizonte 12 meses</span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 mt-0.5">
-                Factor {datosFactorSeleccionado.factor}
-              </h3>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500">Nivel Máximo:</span>
-                <NivelBadge nivel={datosFactorSeleccionado.nivel} puntaje={datosFactorSeleccionado.maxPuntaje} />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500">Tendencia:</span>
-                {renderIconoTendencia(datosFactorSeleccionado.tendencia)}
-              </div>
-            </div>
-          </div>
-
-          {/* Justificación de la Tendencia */}
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-xs text-slate-700 flex items-start gap-2.5">
-            <Compass className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-            <div>
-              <strong className="text-slate-900">Lectura prospectiva del factor: </strong>
-              <span>{datosFactorSeleccionado.explicacionTendencia}</span>
-            </div>
-          </div>
-
-          {/* Listado de Hallazgos y Alertas del Factor */}
-          <div className="space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Hallazgos Registrados en este Factor ({datosFactorSeleccionado.alertas.length})
-            </h4>
-
-            <div className="grid grid-cols-1 gap-4">
-              {datosFactorSeleccionado.alertas.map((alerta) => {
-                const probabilidad = normalizarValorEscala(alerta.probabilidad);
-                const impacto = normalizarValorEscala(alerta.impacto);
-                const calificacion = probabilidad !== null && impacto !== null
-                  ? calcularPuntaje(probabilidad, impacto)
-                  : null;
-
-                return (
-                  <div
-                    key={alerta.id}
-                    className="p-5 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors bg-white"
-                  >
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <OrigenBadge origen={alerta.origen} />
-                        <span className="text-xs font-medium text-slate-600">
-                          Área: <strong className="text-slate-800">{alerta.area}</strong>
-                        </span>
-                        <span className="text-slate-300">&bull;</span>
-                        <span className="text-xs text-slate-500">
-                          Tipo: <code className="bg-slate-100 px-1 py-0.5 rounded text-[11px]">{alerta.tipo_evento}</code>
-                        </span>
-                      </div>
-
-                      <h5 className="text-sm font-bold text-slate-900 leading-snug">
-                        {alerta.titulo}
-                      </h5>
-
-                      <p className="text-xs text-slate-700 mt-2 leading-relaxed">
-                        {alerta.resumen}
-                      </p>
-
-                      <div className="mt-3 bg-slate-50 p-3 rounded border border-slate-100 text-xs">
-                        <span className="font-semibold text-slate-800">Impacto inferido en {empresa}: </span>
-                        <span className="text-slate-600">{alerta.explicacion}</span>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          Fecha: <strong className="text-slate-700">{formatearFechaPublicacion(alerta.fecha_publicacion)}</strong>
-                        </span>
-                        <span>
-                          Fuente: <strong className="text-slate-700">{alerta.fuente}</strong>
-                        </span>
-                        {alerta.enlace && (
-                          <a
-                            href={alerta.enlace}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium ml-auto"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            Fuente externa
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="sm:text-right shrink-0 flex sm:flex-col items-center sm:items-end justify-between gap-2 border-t sm:border-t-0 pt-2 sm:pt-0">
-                      {calificacion ? (
-                        <NivelBadge nivel={calificacion.nivel} puntaje={calificacion.puntaje} />
-                      ) : (
-                        <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                          Sin calificar
-                        </span>
-                      )}
-                      <div className="space-y-1 text-xs text-slate-600 text-right">
-                        <div>
-                          Probabilidad:{' '}
-                          <strong className="text-slate-800">
-                            {probabilidad ?? 'Sin asignar'}
-                            {probabilidad !== null && ' / 5'}
-                          </strong>
-                        </div>
-                        <div>
-                          Impacto:{' '}
-                          <strong className="text-slate-800">
-                            {impacto ?? 'Sin asignar'}
-                            {impacto !== null && ' / 5'}
-                          </strong>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-          </div>
+      <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-4">
+          <h2 className="text-sm font-bold text-slate-900">{seleccionado.nombre}</h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {seleccionado.total} alerta(s) validada(s) · {seleccionado.sube} al alza · {seleccionado.baja} a la baja
+          </p>
         </div>
-      )}
+        {seleccionado.alertas.length === 0 ? (
+          <p className="p-8 text-center text-xs text-slate-500">No hay alertas validadas de este driver.</p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {seleccionado.alertas.map((alerta) => {
+              const efecto = EFECTOS_PRECIO[alerta.efecto_precio];
+              return (
+                <li key={alerta.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold leading-snug text-slate-900">{alerta.titulo}</p>
+                    {alerta.resumen && <p className="mt-1 text-xs text-slate-600">{alerta.resumen}</p>}
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {nombreTipoEvento(alerta.tipo_evento)} · {alerta.fuente} · {formatearFechaPublicacion(alerta.fecha_publicacion)}
+                      {alerta.enlace && (
+                        <a href={alerta.enlace} target="_blank" rel="noopener noreferrer" className="ml-2 inline-flex items-center gap-0.5 font-medium text-emerald-700 hover:underline">
+                          Fuente <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {efecto && <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${efecto.clase}`}>{efecto.etiqueta}</span>}
+                    {alerta.puntaje && <NivelBadge nivel={alerta.nivel} puntaje={alerta.puntaje} size="sm" />}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

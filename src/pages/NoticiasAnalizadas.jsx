@@ -15,7 +15,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { getAlertas, actualizarAlerta } from '../lib/dataService';
-import { FACTORES, AREAS, ESTADOS_ALERTA, TIPOS_EVENTO } from '../lib/catalogos';
+import { AREAS, DRIVERS, EFECTOS_PRECIO, ESTADOS_ALERTA, TIPOS_EVENTO, nombreDriver } from '../lib/catalogos';
 import { formatearFechaPublicacion } from '../lib/fechas';
 import { calcularPuntaje, normalizarValorEscala } from '../lib/puntaje';
 import { useAuth } from '../lib/authContext';
@@ -36,7 +36,7 @@ export default function NoticiasAnalizadas() {
   const [filtroNivel, setFiltroNivel] = useState('');
   const [filtroArea, setFiltroArea] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('');
-  const [filtroOrigen, setFiltroOrigen] = useState('');
+  const [filtroEfecto, setFiltroEfecto] = useState('');
 
   // Estado del formulario de edición del panel de detalle
   const [formEdicion, setFormEdicion] = useState({
@@ -45,6 +45,7 @@ export default function NoticiasAnalizadas() {
     factor: '',
     area: '',
     tipo_evento: '',
+    efecto_precio: '',
     estado: ''
   });
 
@@ -80,6 +81,7 @@ export default function NoticiasAnalizadas() {
       factor: alerta.factor,
       area: alerta.area,
       tipo_evento: alerta.tipo_evento,
+      efecto_precio: alerta.efecto_precio || '',
       estado: alerta.estado
     });
   }
@@ -90,7 +92,7 @@ export default function NoticiasAnalizadas() {
     if (filtroNivel && a.nivel !== filtroNivel) return false;
     if (filtroArea && a.area !== filtroArea) return false;
     if (filtroEstado && a.estado !== filtroEstado) return false;
-    if (filtroOrigen && a.origen !== filtroOrigen) return false;
+    if (filtroEfecto && a.efecto_precio !== filtroEfecto) return false;
     if (filtroTexto) {
       const q = filtroTexto.toLowerCase();
       const matchTitulo = a.titulo?.toLowerCase().includes(q);
@@ -128,6 +130,7 @@ export default function NoticiasAnalizadas() {
       factor: formEdicion.factor,
       area: formEdicion.area,
       tipo_evento: formEdicion.tipo_evento,
+      efecto_precio: formEdicion.efecto_precio || null,
       estado: formEdicion.estado
     };
 
@@ -172,10 +175,10 @@ export default function NoticiasAnalizadas() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-            Noticias Analizadas y Validación de Alertas
+            Noticias del cacao
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Bandeja del analista: clasifica, valida, descarta y ajusta probabilidad e impacto.
+            Noticias clasificadas por driver, con el efecto esperado sobre el precio. El analista valida, descarta y ajusta la clasificación.
           </p>
         </div>
         <button
@@ -219,9 +222,9 @@ export default function NoticiasAnalizadas() {
             onChange={(e) => setFiltroFactor(e.target.value)}
             className="text-xs border border-slate-300 rounded px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="">Todos los factores</option>
-            {FACTORES.map((f) => (
-              <option key={f} value={f}>{f}</option>
+            <option value="">Todos los drivers</option>
+            {DRIVERS.map((d) => (
+              <option key={d.codigo} value={d.codigo}>{d.nombre}</option>
             ))}
           </select>
 
@@ -251,13 +254,14 @@ export default function NoticiasAnalizadas() {
 
           {/* Origen */}
           <select
-            value={filtroOrigen}
-            onChange={(e) => setFiltroOrigen(e.target.value)}
+            value={filtroEfecto}
+            onChange={(e) => setFiltroEfecto(e.target.value)}
             className="text-xs border border-slate-300 rounded px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="">Todos los orígenes</option>
-            <option value="base">Base PESTEL (27)</option>
-            <option value="n8n">Automatizados n8n</option>
+            <option value="">Todo efecto en el precio</option>
+            {Object.entries(EFECTOS_PRECIO).map(([codigo, efecto]) => (
+              <option key={codigo} value={codigo}>{efecto.etiqueta}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -297,13 +301,17 @@ export default function NoticiasAnalizadas() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                            {alerta.factor}
+                            {nombreDriver(alerta.factor)}
                           </span>
                           <span className="text-[10px] text-slate-400">&bull;</span>
                           <span className="text-[10px] text-slate-600 truncate max-w-[150px]">
                             {alerta.area}
                           </span>
-                          <OrigenBadge origen={alerta.origen} />
+                          {EFECTOS_PRECIO[alerta.efecto_precio] && (
+                            <span className={`text-[10px] px-1.5 rounded border font-medium ${EFECTOS_PRECIO[alerta.efecto_precio].clase}`}>
+                              {EFECTOS_PRECIO[alerta.efecto_precio].etiqueta}
+                            </span>
+                          )}
                           <span className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
                             alerta.estado === 'validada'
                               ? 'bg-emerald-100 text-emerald-800'
@@ -373,7 +381,7 @@ export default function NoticiasAnalizadas() {
                 </div>
 
                 <div>
-                  <span className="font-semibold text-slate-700">Impacto inferido en {empresa}:</span>
+                  <span className="font-semibold text-slate-700">Por qué importa para {empresa}:</span>
                   <p className="text-slate-600 mt-1 leading-relaxed bg-slate-50 p-2.5 rounded border border-slate-100">
                     {alertaSeleccionada.explicacion}
                   </p>
@@ -523,14 +531,15 @@ export default function NoticiasAnalizadas() {
                 {/* Reclasificar Factor y Área */}
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="block text-slate-600 mb-1 font-medium">Factor PESTEL:</label>
+                    <label className="block text-slate-600 mb-1 font-medium">Driver:</label>
                     <select
-                      value={formEdicion.factor}
+                      value={formEdicion.factor || ''}
                       onChange={(e) => setFormEdicion({ ...formEdicion, factor: e.target.value })}
                       className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
                     >
-                      {FACTORES.map((f) => (
-                        <option key={f} value={f}>{f}</option>
+                      <option value="" disabled>Selecciona un driver</option>
+                      {DRIVERS.map((d) => (
+                        <option key={d.codigo} value={d.codigo}>{d.nombre}</option>
                       ))}
                     </select>
                   </div>
@@ -538,25 +547,41 @@ export default function NoticiasAnalizadas() {
                   <div>
                     <label className="block text-slate-600 mb-1 font-medium">Área Afectada:</label>
                     <select
-                      value={formEdicion.area}
+                      value={formEdicion.area || ''}
                       onChange={(e) => setFormEdicion({ ...formEdicion, area: e.target.value })}
                       className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
                     >
+                      <option value="" disabled>Selecciona un área</option>
                       {AREAS.map((a) => (
                         <option key={a} value={a}>{a}</option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="col-span-2">
-                    <label className="block text-slate-600 mb-1 font-medium">Tipo de Evento:</label>
+                  <div>
+                    <label className="block text-slate-600 mb-1 font-medium">Tipo de evento:</label>
                     <select
-                      value={formEdicion.tipo_evento}
+                      value={formEdicion.tipo_evento || ''}
                       onChange={(e) => setFormEdicion({ ...formEdicion, tipo_evento: e.target.value })}
                       className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
                     >
+                      <option value="" disabled>Selecciona un tipo</option>
                       {TIPOS_EVENTO.map((t) => (
-                        <option key={t} value={t}>{t}</option>
+                        <option key={t.codigo} value={t.codigo}>{t.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-600 mb-1 font-medium">Efecto en el precio:</label>
+                    <select
+                      value={formEdicion.efecto_precio || ''}
+                      onChange={(e) => setFormEdicion({ ...formEdicion, efecto_precio: e.target.value })}
+                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+                    >
+                      <option value="">Sin definir</option>
+                      {Object.entries(EFECTOS_PRECIO).map(([codigo, efecto]) => (
+                        <option key={codigo} value={codigo}>{efecto.etiqueta}</option>
                       ))}
                     </select>
                   </div>
@@ -570,7 +595,7 @@ export default function NoticiasAnalizadas() {
                   title={!permisos.puedeEditarRiesgos ? 'Requiere rol de Analista o Gerente' : ''}
                 >
                   <Save className="w-3.5 h-3.5" />
-                  {guardando ? 'Guardando cambios...' : 'Guardar Reclasificación y Puntaje'}
+                  {guardando ? 'Guardando cambios...' : 'Guardar clasificación y puntaje'}
                 </button>
 
                 {/* Acciones Rápidas: Validar / Descartar */}

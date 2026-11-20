@@ -1,26 +1,14 @@
 // ==============================================================================
-// AgroDecisions · Catálogos del panel de compra de cacao de Coagropacífico
-// CATÁLOGOS OFICIALES Y REGLAS DEL RECOMENDADOR
+// Catálogos de Coagropacífico (drivers, áreas, tipos de evento)
 // Fuente de verdad: docs/Documento maestro de definición del aplicativo.md
 // ==============================================================================
 
-export const FACTORES = [
-  'Político',
-  'Económico',
-  'Social',
-  'Tecnológico',
-  'Ecológico',
-  'Legal'
-];
-
 export const AREAS = [
-  'Compras y finanzas',
-  'Operaciones y logística',
-  'Forestal',
-  'Talento humano',
-  'Jurídico y ambiental',
-  'Planeación y sostenibilidad',
-  'Comercial'
+  'Gerencia',
+  'Compras y acopio',
+  'Finanzas y tesorería',
+  'Calidad y certificación',
+  'Logística'
 ];
 
 export const ESTADOS_ALERTA = [
@@ -36,15 +24,22 @@ export const DECISIONES_USUARIO = [
   'descartada'
 ];
 
+// Tipos de evento de noticias. Coinciden con public.reglas (acción sugerida).
 export const TIPOS_EVENTO = [
-  'paro_bloqueo',
-  'clima_incendio',
-  'energia_racionamiento',
-  'norma_ambiental_empaques',
-  'norma_laboral_tributaria',
-  'tasa_cambio',
-  'otro'
+  { codigo: 'movimiento_bolsa', nombre: 'Movimiento de la bolsa' },
+  { codigo: 'cosecha_africa', nombre: 'Cosecha en África' },
+  { codigo: 'precio_oficial_africa', nombre: 'Precio oficial de Costa de Marfil o Ghana' },
+  { codigo: 'clima', nombre: 'Clima' },
+  { codigo: 'demanda_molienda', nombre: 'Demanda y molienda' },
+  { codigo: 'regulacion', nombre: 'Regulación (EUDR, cadmio, aranceles)' },
+  { codigo: 'orden_publico_vias', nombre: 'Orden público y vías' },
+  { codigo: 'tasa_cambio', nombre: 'Tasa de cambio' },
+  { codigo: 'otro', nombre: 'Otro' }
 ];
+
+export function nombreTipoEvento(codigo) {
+  return TIPOS_EVENTO.find((tipo) => tipo.codigo === codigo)?.nombre || codigo || 'Sin tipo';
+}
 
 // Drivers del cacao (contrapropuesta). Coinciden con public.drivers en Supabase
 // y se guardan en alertas.factor.
@@ -60,6 +55,9 @@ export const DRIVERS = [
 export function nombreDriver(codigo) {
   return DRIVERS.find((driver) => driver.codigo === codigo)?.nombre || codigo || 'Sin driver';
 }
+
+// Los drivers usan la misma columna factor que antes ocupaba PESTEL.
+export const FACTORES = DRIVERS.map((driver) => driver.codigo);
 
 export const EFECTOS_PRECIO = {
   sube: { etiqueta: 'Sube el precio', clase: 'border-amber-200 bg-amber-50 text-amber-900' },
