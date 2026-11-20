@@ -1,5 +1,5 @@
 // ==============================================================================
-// SmurfDecisions · Router principal
+// AgroDecisions · Compra de cacao para Coagropacífico
 // Rutas públicas: /  →  Landing
 //                 /login  →  Login
 //                 /registro → Registro
@@ -20,7 +20,7 @@ import PanelEjecutivo from './pages/PanelEjecutivo';
 import NoticiasAnalizadas from './pages/NoticiasAnalizadas';
 import AnalisisPestel from './pages/AnalisisPestel';
 import Recomendador from './pages/Recomendador';
-import SimuladorEconomico from './pages/SimuladorEconomico';
+import CompraCacao from './pages/CompraCacao';
 import CentroActualizaciones from './pages/CentroActualizaciones';
 
 export default function App() {
@@ -39,7 +39,7 @@ export default function App() {
             <Route path="noticias" element={<NoticiasAnalizadas />} />
             <Route path="pestel" element={<AnalisisPestel />} />
             <Route path="recomendador" element={<Recomendador />} />
-            <Route path="simulador" element={<SimuladorEconomico />} />
+            <Route path="simulador" element={<CompraCacao />} />
             <Route path="actualizaciones" element={<CentroActualizaciones />} />
           </Route>
 

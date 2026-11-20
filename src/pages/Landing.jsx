@@ -1,5 +1,5 @@
 // ==============================================================================
-// SmurfDecisions · Landing Page pública
+// AgroDecisions · Compra de cacao para Coagropacífico
 // ==============================================================================
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -9,11 +9,8 @@ import {
   Zap,
   BarChart3,
   Globe,
-  Lightbulb,
   ArrowRight,
   CheckCircle2,
-  Newspaper,
-  Compass,
   Calculator,
   RefreshCw,
   ChevronRight
@@ -21,62 +18,63 @@ import {
 
 const FEATURES = [
   {
-    icon: Newspaper,
+    icon: TrendingUp,
     color: 'text-blue-600',
     bg: 'bg-blue-50 border-blue-200',
-    title: 'Noticias Analizadas con IA',
-    desc: 'Monitoreo continuo del entorno. Alertas clasificadas por factor PESTEL, probabilidad e impacto para tu organización.'
+    title: 'Referencia de precio del cacao',
+    desc: 'Consulta el futuro internacional de cacao ICE y revisa su cotización e historial diario como referencia para el plan de compras.'
   },
   {
-    icon: Compass,
+    icon: Globe,
     color: 'text-indigo-600',
     bg: 'bg-indigo-50 border-indigo-200',
-    title: 'Análisis PESTEL Dinámico',
-    desc: 'Matriz de riesgos y oportunidades adaptada al sector de tu empresa, actualizada en tiempo real con datos del entorno colombiano.'
-  },
-  {
-    icon: Lightbulb,
-    color: 'text-amber-600',
-    bg: 'bg-amber-50 border-amber-200',
-    title: 'Recomendador de Decisiones',
-    desc: 'Motor de reglas determinístico que convierte alertas validadas en acciones estratégicas trazables y auditables.'
+    title: 'TRM oficial sugerida',
+    desc: 'Consulta la tasa certificada por la Superintendencia Financiera, con su periodo de vigencia. La cooperativa decide si la aplica.'
   },
   {
     icon: Calculator,
     color: 'text-emerald-600',
     bg: 'bg-emerald-50 border-emerald-200',
-    title: 'Simulador Económico',
-    desc: 'Modela escenarios de TRM, inflación y tasa BanRep para anticipar el impacto financiero en tu cadena de valor.'
+    title: 'Compra por calidad',
+    desc: 'Define diferenciales, volúmenes y costos de acopio para visualizar el precio estimado por kilogramo.'
   },
   {
-    icon: BarChart3,
-    color: 'text-violet-600',
-    bg: 'bg-violet-50 border-violet-200',
-    title: 'Panel Ejecutivo',
-    desc: 'Síntesis gerencial de riesgos prioritarios, decisiones pendientes y estado de los indicadores macroeconómicos clave.'
+    icon: ShieldCheck,
+    color: 'text-amber-600',
+    bg: 'bg-amber-50 border-amber-200',
+    title: 'Acceso por roles',
+    desc: 'Los datos de compra se aíslan por empresa y cada usuario consulta o modifica información según sus permisos.'
   },
   {
     icon: RefreshCw,
     color: 'text-cyan-700',
     bg: 'bg-cyan-50 border-cyan-200',
-    title: 'Automatización con n8n',
-    desc: 'Flujos de actualización automatizados que nutren la plataforma con datos frescos desde múltiples fuentes externas.'
+    title: 'Parámetros bajo control',
+    desc: 'Las referencias externas son orientativas: los parámetros de operación y la decisión final permanecen en manos de la cooperativa.'
+  },
+  {
+    icon: BarChart3,
+    color: 'text-violet-600',
+    bg: 'bg-violet-50 border-violet-200',
+    title: 'Capital y cobertura',
+    desc: 'Estima el capital requerido, la cobertura de caja y la brecha con los parámetros que establezca Coagropacífico.'
   }
 ];
 
 const BENEFITS = [
-  'Aislamiento de datos por empresa con RLS en Supabase',
+  'Datos de la cooperativa protegidos con RLS en Supabase',
   'Roles diferenciados: Consultor, Analista y Gerente',
-  'Adaptación automática al sector y contexto de tu organización',
-  'Decisiones estratégicas trazables y auditables',
-  'Inteligencia de entorno en tiempo real para Colombia',
-  'Despliegue multiempresa sin configuración adicional'
+  'Cálculos y parámetros ajustables al contexto cacaotero',
+  'Decisiones de compra basadas en referencias transparentes',
+  'Control de la cooperativa sobre los parámetros y resultados'
 ];
 
-const EMPRESAS = [
-  { sigla: 'SW', nombre: 'Smurfit', sector: 'Empaques y papel', color: 'from-blue-600 to-blue-800' },
-  { sigla: 'AM', nombre: 'Asociación de Mujeres Caficultoras del Cauca (AMUCC)', sector: 'Caficultura', color: 'from-emerald-600 to-teal-700' }
-];
+const COOPERATIVA = {
+  sigla: 'CP',
+  nombre: 'Coagropacífico',
+  sector: 'Cooperativa de productores de cacao',
+  color: 'from-emerald-600 to-teal-700'
+};
 
 export default function Landing() {
   const [visible, setVisible] = useState(false);
@@ -94,18 +92,18 @@ export default function Landing() {
           {/* Logo */}
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-xs text-white shadow-lg shadow-blue-900/40">
-              SD
+              AD
             </div>
             <span className="font-bold text-slate-900 text-sm tracking-tight">
-              Smurf<span className="text-blue-600">Decisions</span>
+              Agro<span className="text-blue-600">Decisions</span>
             </span>
           </div>
 
           {/* Nav links desktop */}
           <div className="hidden md:flex items-center gap-6 text-sm text-slate-600">
-            <a href="#funcionalidades" className="hover:text-slate-900 transition-colors">Funcionalidades</a>
+            <a href="#funcionalidades" className="hover:text-slate-900 transition-colors">Herramientas</a>
             <a href="#beneficios" className="hover:text-slate-900 transition-colors">Beneficios</a>
-            <a href="#empresas" className="hover:text-slate-900 transition-colors">Empresas</a>
+            <a href="#cooperativa" className="hover:text-slate-900 transition-colors">Cooperativa</a>
           </div>
 
           {/* CTA */}
@@ -120,7 +118,7 @@ export default function Landing() {
               to="/registro"
               className="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-blue-900/30"
             >
-              Registrarse
+              Solicitar acceso
             </Link>
           </div>
         </div>
@@ -149,26 +147,24 @@ export default function Landing() {
               className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold mb-6 transition-all duration-700 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
             >
               <Zap className="w-3.5 h-3.5" />
-              Plataforma de Inteligencia Estratégica para Colombia
+              Herramienta de compra de cacao · Coagropacífico
             </div>
 
             {/* Heading */}
             <h1
               className={`text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-6 text-slate-950 transition-all duration-700 delay-100 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
             >
-              Toma decisiones{' '}
+              Planea la compra de cacao{' '}
               <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">
-                más inteligentes
+                con mejores referencias
               </span>{' '}
-              con datos del entorno
             </h1>
 
             {/* Subtitle */}
             <p
               className={`text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed transition-all duration-700 delay-150 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
             >
-              SmurfDecisions analiza el entorno PESTEL en tiempo real, clasifica riesgos con IA
-              y genera recomendaciones estratégicas adaptadas al sector y contexto de tu organización.
+              AgroDecisions reúne referencias de precio, TRM oficial sugerida y parámetros de compra para ayudar a Coagropacífico a estimar costos, capital y cobertura por calidad.
             </p>
 
             {/* CTAs */}
@@ -186,22 +182,21 @@ export default function Landing() {
                 to="/registro"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 font-semibold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
-                Registrar mi empresa
+                Solicitar acceso
               </Link>
             </div>
           </div>
 
-          {/* Stats strip */}
           <div className={`mt-16 grid grid-cols-2 sm:grid-cols-4 gap-px bg-slate-200 rounded-2xl overflow-hidden border border-slate-200 max-w-3xl mx-auto transition-all duration-700 delay-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             {[
-              { value: '6', label: 'Factores PESTEL' },
-              { value: '3', label: 'Roles de acceso' },
-              { value: '2', label: 'Empresas habilitadas' },
-              { value: 'RLS', label: 'Aislamiento en base de datos' },
-            ].map((s) => (
-              <div key={s.label} className="bg-white px-4 py-5 text-center">
-                <div className="text-2xl font-extrabold text-slate-900">{s.value}</div>
-                <div className="text-xs text-slate-500 mt-1">{s.label}</div>
+              { value: '1', label: 'Cooperativa: Coagropacífico' },
+              { value: '5 años', label: 'Historial diario de cacao' },
+              { value: 'TRM', label: 'Tasa oficial sugerida' },
+              { value: 'RLS', label: 'Aislamiento en base de datos' }
+            ].map((item) => (
+              <div key={item.label} className="bg-white px-4 py-5 text-center">
+                <div className="text-2xl font-extrabold text-slate-900">{item.value}</div>
+                <div className="text-xs text-slate-500 mt-1">{item.label}</div>
               </div>
             ))}
           </div>
@@ -214,13 +209,13 @@ export default function Landing() {
           <div className="text-center mb-14">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold mb-4">
               <BarChart3 className="w-3.5 h-3.5" />
-              Módulos del sistema
+              Herramientas para la compra
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
-              Todo lo que necesitas, en un solo lugar
+              Del precio de referencia al plan de compra
             </h2>
             <p className="text-slate-600 mt-3 max-w-xl mx-auto">
-              Seis módulos integrados que cubren el ciclo completo: desde la detección de eventos del entorno hasta la aprobación de decisiones estratégicas.
+              Consulta referencias internacionales y combina sus valores con los parámetros de calidad, volumen y caja definidos por la cooperativa.
             </p>
           </div>
 
@@ -245,66 +240,51 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── BENEFICIOS ── */}
       <section id="beneficios" className="py-20 sm:py-24 border-t border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Texto */}
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold mb-5">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                Seguridad y gobierno corporativo
+                Seguridad y control de la cooperativa
               </div>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-5">
-                Diseñado para organizaciones exigentes
+                Diseñada para las decisiones de compra de cacao
               </h2>
               <p className="text-slate-600 mb-8 leading-relaxed">
-                SmurfDecisions implementa aislamiento de datos a nivel de base de datos, segregación estricta de funciones por rol y control de acceso basado en identidad corporativa verificada.
+                AgroDecisions organiza la información de compra de Coagropacífico con acceso por roles. Las referencias externas orientan el análisis; la cooperativa conserva el control de sus parámetros y decisiones.
               </p>
-
               <div className="space-y-3">
-                {BENEFITS.map((b) => (
-                  <div key={b} className="flex items-start gap-3">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <span className="text-sm text-slate-700">{b}</span>
+                {BENEFITS.map((benefit) => (
+                  <div key={benefit} className="flex items-start gap-3">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <span className="text-sm text-slate-700">{benefit}</span>
                   </div>
                 ))}
               </div>
-
               <div className="mt-8">
                 <Link
-                  to="/registro"
+                  to="/login"
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm rounded-xl transition-colors"
                 >
-                  Comenzar ahora <ChevronRight className="w-4 h-4" />
+                  Iniciar sesión <ChevronRight className="w-4 h-4" />
                 </Link>
               </div>
             </div>
-
-            {/* Visual card */}
             <div className="hidden lg:block">
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
                 <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span className="text-sm font-semibold text-slate-900">Control de Acceso por Rol</span>
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                  <span className="text-sm font-semibold text-slate-900">Acceso según el rol</span>
                 </div>
                 {[
-                  { rol: 'Consultor', color: 'bg-slate-600', perms: ['Ver paneles', 'Consultar alertas', 'Exportar reportes'] },
-                  { rol: 'Analista', color: 'bg-blue-600', perms: ['Todo lo anterior', 'Calibrar riesgos (P×I)', 'Validar hallazgos de IA'] },
-                  { rol: 'Gerente', color: 'bg-emerald-600', perms: ['Todo lo anterior', 'Aprobar decisiones', 'Gestionar reglas y flujos'] },
-                ].map((r) => (
-                  <div key={r.rol} className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                    <div className="flex items-center gap-2 mb-2.5">
-                      <span className={`px-2 py-0.5 text-[10px] font-black uppercase rounded text-white ${r.color}`}>{r.rol}</span>
-                    </div>
-                    <ul className="space-y-1">
-                      {r.perms.map((p) => (
-                        <li key={p} className="flex items-center gap-2 text-xs text-slate-600">
-                          <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0" />
-                          {p}
-                        </li>
-                      ))}
-                    </ul>
+                  { rol: 'Consultor', color: 'bg-slate-600', permisos: 'Consulta precios y resultados' },
+                  { rol: 'Analista', color: 'bg-blue-600', permisos: 'Edita parámetros y calidades' },
+                  { rol: 'Gerente', color: 'bg-emerald-600', permisos: 'Administra el plan de compra' }
+                ].map((item) => (
+                  <div key={item.rol} className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                    <span className={`px-2 py-0.5 text-[10px] font-black uppercase rounded text-white ${item.color}`}>{item.rol}</span>
+                    <p className="mt-2 text-xs text-slate-600">{item.permisos}</p>
                   </div>
                 ))}
               </div>
@@ -313,60 +293,43 @@ export default function Landing() {
         </div>
       </section>
 
-      <section id="empresas" className="py-20 sm:py-24 bg-blue-50/60 border-t border-slate-200">
+      <section id="cooperativa" className="py-16 bg-blue-50/60 border-t border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-50 border border-violet-200 text-violet-800 text-xs font-semibold mb-5">
             <Globe className="w-3.5 h-3.5" />
-            Plataforma multiempresa
+            Cooperativa participante
           </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-4">
-            Dos organizaciones, datos independientes
-          </h2>
-          <p className="text-slate-600 max-w-xl mx-auto mb-12">
-            La empresa y el rol se asignan en la base de datos. Cada cuenta consulta exclusivamente la información de su organización.
+          <h2 className="text-3xl font-extrabold text-slate-900 mb-4">Diseñada para Coagropacífico</h2>
+          <p className="text-slate-600 max-w-xl mx-auto mb-8">
+            Cada cuenta recibe un rol y consulta los datos autorizados de la cooperativa.
           </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-3xl mx-auto">
-            {EMPRESAS.map((e) => (
-              <div key={e.nombre} className="bg-white border border-slate-200 rounded-2xl p-6 text-center hover:border-blue-300 transition-all shadow-sm">
-                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${e.color} flex items-center justify-center text-white font-black text-lg mx-auto mb-4 shadow-lg`}>
-                  {e.sigla}
-                </div>
-                <div className="font-bold text-slate-900 text-sm mb-1">{e.nombre}</div>
-                <div className="text-xs text-slate-600">{e.sector}</div>
-              </div>
-            ))}
+          <div className="max-w-md mx-auto bg-white border border-slate-200 rounded-2xl p-6 text-center shadow-sm">
+            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${COOPERATIVA.color} flex items-center justify-center text-white font-black text-lg mx-auto mb-4 shadow-lg`}>
+              {COOPERATIVA.sigla}
+            </div>
+            <div className="font-bold text-slate-900 text-sm mb-1">{COOPERATIVA.nombre}</div>
+            <div className="text-xs text-slate-600">{COOPERATIVA.sector}</div>
           </div>
         </div>
       </section>
 
-      {/* ── CTA FINAL ── */}
-      <section className="py-20 sm:py-24 border-t border-slate-200 bg-white">
+      <section className="py-16 border-t border-slate-200 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-900/50">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-900/20">
             <TrendingUp className="w-7 h-7 text-white" />
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-4">
-            Comienza a decidir mejor hoy
+            Planea mejor la compra de cacao
           </h2>
           <p className="text-slate-600 mb-8 text-lg">
-            Inicia sesión con una cuenta activa de Smurfit o AMUCC para consultar sus datos autorizados.
+            Ingresa con tu cuenta activa de Coagropacífico para consultar los datos autorizados.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              to="/login"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-900/40 transition-all hover:scale-[1.02]"
-            >
-              Acceder ahora
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              to="/registro"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-slate-300 text-slate-800 font-semibold rounded-xl hover:bg-slate-50 transition-all"
-            >
-              Crear cuenta gratuita
-            </Link>
-          </div>
+          <Link
+            to="/login"
+            className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors"
+          >
+            Acceder al panel <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
       </section>
 
@@ -374,10 +337,10 @@ export default function Landing() {
       <footer className="border-t border-slate-200 py-8 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-black text-[9px]">SD</div>
-            <span>SmurfDecisions &copy; 2026</span>
+            <div className="w-5 h-5 rounded bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-black text-[9px]">AD</div>
+            <span>AgroDecisions &copy; 2026</span>
           </div>
-          <span>Risk &amp; Strategy Intelligence · Colombia</span>
+          <span>Compra de cacao · Coagropacífico</span>
         </div>
       </footer>
     </div>

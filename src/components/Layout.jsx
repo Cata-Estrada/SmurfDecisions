@@ -1,5 +1,5 @@
 // ==============================================================================
-// SmurfDecisions · Layout Principal del Dashboard
+// AgroDecisions · Panel de Coagropacífico
 // Corrección: todos los hooks ANTES de cualquier return condicional
 // Guard de autenticación: redirige a /login si no hay sesión
 // ==============================================================================
@@ -24,12 +24,12 @@ import { getConexionStatus } from '../lib/dataService';
 import { useAuth } from '../lib/authContext';
 
 const NAV_ITEMS = [
-  { path: '/dashboard',               label: 'Panel Ejecutivo',   icon: LayoutDashboard, end: true },
-  { path: '/dashboard/noticias',      label: 'Noticias Analizadas', icon: Newspaper },
-  { path: '/dashboard/pestel',        label: 'Análisis PESTEL',   icon: Compass },
-  { path: '/dashboard/recomendador',  label: 'Recomendador',      icon: Lightbulb },
-  { path: '/dashboard/simulador',     label: 'Simulador Económico', icon: Calculator },
-  { path: '/dashboard/actualizaciones', label: 'Actualizaciones', icon: RefreshCw },
+  { path: '/dashboard',               label: 'Panel Ejecutivo',      icon: LayoutDashboard, end: true },
+  { path: '/dashboard/noticias',      label: 'Noticias Analizadas',  icon: Newspaper },
+  { path: '/dashboard/pestel',        label: 'Análisis PESTEL',      icon: Compass },
+  { path: '/dashboard/recomendador',  label: 'Recomendador',         icon: Lightbulb },
+  { path: '/dashboard/simulador',     label: 'Compra de cacao',      icon: Calculator },
+  { path: '/dashboard/actualizaciones', label: 'Actualizaciones',    icon: RefreshCw },
 ];
 
 const ROL_COLOR = {
@@ -120,14 +120,14 @@ export default function Layout() {
         <div className="flex items-center justify-between px-5 h-14 border-b border-white/5 shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-[10px] text-white shadow-md">
-              SD
+              AD
             </div>
             <div>
               <span className="font-bold text-white text-xs tracking-tight">
-                Smurf<span className="text-blue-400">Decisions</span>
+                Agro<span className="text-blue-400">Decisions</span>
               </span>
               <p className="text-[10px] text-blue-300/60 leading-none mt-0.5 hidden sm:block">
-                Risk &amp; Strategy Intelligence
+                Compra de cacao · Coagropacífico
               </p>
             </div>
           </div>
@@ -241,7 +241,7 @@ export default function Layout() {
             <div className="hidden sm:block min-w-0">
               <span className="font-bold text-white text-sm truncate block">{empresa}</span>
               <span className="text-[10px] text-slate-500 truncate block">
-                Inteligencia PESTEL · Toma de Decisiones
+                Cacao · Decisiones de compra
               </span>
             </div>
           </div>

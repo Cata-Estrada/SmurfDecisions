@@ -1,5 +1,5 @@
 // ==============================================================================
-// PROYECTO: SmurfDecisions - Smurfit Westrock Colombia
+// AgroDecisions · Catálogos del panel de compra de cacao de Coagropacífico
 // CATÁLOGOS OFICIALES Y REGLAS DEL RECOMENDADOR
 // Fuente de verdad: docs/Documento maestro de definición del aplicativo.md
 // ==============================================================================

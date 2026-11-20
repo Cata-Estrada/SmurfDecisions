@@ -1,5 +1,5 @@
 // ==============================================================================
-// SmurfDecisions · Página de Inicio de Sesión
+// AgroDecisions · Inicio de sesión de Coagropacífico
 // Todos los hooks declarados ANTES de cualquier return condicional
 // ==============================================================================
 import React, { useState } from 'react';
@@ -67,16 +67,16 @@ export default function Login() {
       <nav className="flex-shrink-0 h-14 border-b border-white/5 flex items-center px-4 sm:px-6">
         <Link to="/" className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-[10px] text-white">
-            SD
+            AD
           </div>
           <span className="font-bold text-white text-sm tracking-tight">
-            Smurf<span className="text-blue-400">Decisions</span>
+            Agro<span className="text-blue-400">Decisions</span>
           </span>
         </Link>
         <div className="ml-auto text-xs text-slate-500">
           ¿Sin cuenta?{' '}
           <Link to="/registro" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
-            Registrarse
+            Solicitar acceso
           </Link>
         </div>
       </nav>
@@ -92,17 +92,16 @@ export default function Login() {
               <ShieldCheck className="w-8 h-8 text-white" />
             </div>
             <h2 className="text-3xl font-extrabold text-white mb-4">
-              Inteligencia estratégica adaptada a tu empresa
+              Compra de cacao para Coagropacífico
             </h2>
             <p className="text-slate-400 leading-relaxed">
-              El sistema detecta tu organización automáticamente y adapta los análisis de riesgo PESTEL,
-              las recomendaciones y los permisos de acceso a tu rol corporativo.
+              Consulta la referencia internacional del cacao, la TRM oficial sugerida y el plan de compra autorizado para tu rol.
             </p>
             <div className="mt-10 space-y-3">
               {[
                 { icon: '🏢', text: 'Datos aislados por empresa (RLS en Supabase)' },
                 { icon: '🔐', text: 'Roles verificados: Consultor, Analista, Gerente' },
-                { icon: '📡', text: 'Alertas en tiempo real del entorno colombiano' },
+                { icon: '🍫', text: 'Parámetros y calidades de cacao de la cooperativa' },
               ].map((item) => (
                 <div key={item.text} className="flex items-center gap-3 bg-white/5 rounded-xl px-4 py-3 text-sm text-slate-300">
                   <span className="text-base">{item.icon}</span>
@@ -199,15 +198,14 @@ export default function Login() {
             <p className="text-center text-sm text-slate-500 mt-5">
               ¿Sin cuenta?{' '}
               <Link to="/registro" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
-                Crear una cuenta
+                Solicitar acceso
               </Link>
             </p>
 
             <div className="mt-7 rounded-2xl border border-white/10 bg-slate-900/80 p-4">
               <p className="text-xs font-semibold text-slate-300 mb-3">Roles habilitados en las cuentas de prueba</p>
               <div className="space-y-2 text-xs text-slate-400">
-                <p><strong className="text-slate-200">Smurfit:</strong> Consultor, Analista y Gerente</p>
-                <p><strong className="text-slate-200">AMUCC:</strong> Gerente</p>
+                <p><strong className="text-slate-200">Coagropacífico:</strong> Consultor, Analista y Gerente</p>
               </div>
               <p className="text-[11px] text-slate-500 mt-3">
                 Las cuentas y contraseñas se administran en Supabase; no hay acceso de demostración local.
