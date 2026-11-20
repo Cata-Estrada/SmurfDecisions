@@ -1,8 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { calcularPuntaje } from './puntaje';
 
-const INDICADORES_GLOBALES = ['TRM', 'IPC', 'TASA_BANREP'];
-
 function requireEmpresa(empresaId) {
   if (!empresaId) throw new Error('No se encontró una empresa activa para esta sesión.');
   if (!isSupabaseConfigured || !supabase) {
@@ -17,18 +15,15 @@ function throwIfError(error, operation) {
 export async function getConexionStatus(empresaId) {
   requireEmpresa(empresaId);
 
-  const tablas = ['alertas', 'indicadores', 'valores_indicador', 'reglas', 'fuentes', 'ejecuciones'];
+  const tablas = ['alertas', 'valores_indicador', 'reglas', 'fuentes', 'ejecuciones'];
   const resultados = await Promise.all(
     tablas.map((tabla) => {
       const consulta = supabase
         .from(tabla)
         .select('*', { count: 'exact', head: true });
 
-      return tabla === 'valores_indicador'
-        ? consulta.or(
-            `empresa_id.eq.${empresaId},indicador_codigo.in.(${INDICADORES_GLOBALES.join(',')})`
-          )
-        : consulta.eq('empresa_id', empresaId);
+      // valores_indicador es global (TRM y bolsa del cacao); el resto es por empresa.
+      return tabla === 'valores_indicador' ? consulta : consulta.eq('empresa_id', empresaId);
     })
   );
 
@@ -117,7 +112,6 @@ export async function getValoresIndicadores(empresaId) {
   const { data, error } = await supabase
     .from('valores_indicador')
     .select('*')
-    .or(`empresa_id.eq.${empresaId},indicador_codigo.in.(${INDICADORES_GLOBALES.join(',')})`)
     .order('fecha', { ascending: false });
 
   throwIfError(error, 'No se pudieron consultar los indicadores');
@@ -198,7 +192,7 @@ export async function getReglas(empresaId) {
 
 export async function getDatosCompraCacao(empresaId) {
   requireEmpresa(empresaId);
-  const [configuracion, calidades] = await Promise.all([
+  const [configuracion, calidades, caja] = await Promise.all([
     supabase
       .from('configuracion_compra_cacao')
       .select('*')
@@ -208,31 +202,76 @@ export async function getDatosCompraCacao(empresaId) {
       .from('calidades_cacao')
       .select('*')
       .eq('empresa_id', empresaId)
-      .order('nombre')
+      .order('nombre'),
+    getCajaVigente(empresaId)
   ]);
 
   throwIfError(configuracion.error, 'No se pudo consultar la configuración de compra de cacao');
   throwIfError(calidades.error, 'No se pudieron consultar las calidades de cacao');
 
   return {
-    configuracion: configuracion.data,
+    configuracion: (configuracion.data || caja)
+      ?{ ...(configuracion.data || {}), caja_disponible_cop: caja?.disponible_cop ?? null }
+      : null,
     calidades: calidades.data || []
   };
 }
 
+// La caja vive en su propia tabla (historial de saldos); la vigente es la más reciente.
+export async function getCajaVigente(empresaId) {
+  requireEmpresa(empresaId);
+  const { data, error } = await supabase
+    .from('caja')
+    .select('*')
+    .eq('empresa_id', empresaId)
+    .order('fecha', { ascending: false })
+    .order('creado_en', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  throwIfError(error, 'No se pudo consultar la caja disponible');
+  return data;
+}
+
+export async function registrarCaja(empresaId, usuarioId, disponibleCop, nota = null) {
+  requireEmpresa(empresaId);
+  const { data, error } = await supabase
+    .from('caja')
+    .insert({
+      empresa_id: empresaId,
+      disponible_cop: disponibleCop,
+      nota,
+      registrado_por: usuarioId
+    })
+    .select()
+    .single();
+
+  throwIfError(error, 'No se pudo registrar la caja disponible');
+  return data;
+}
+
 export async function guardarConfiguracionCompraCacao(empresaId, usuarioId, campos) {
   requireEmpresa(empresaId);
+  const { caja_disponible_cop: cajaNueva, ...parametros } = campos;
+
   const { data, error } = await supabase
     .from('configuracion_compra_cacao')
     .upsert(
-      { ...campos, empresa_id: empresaId, actualizado_por: usuarioId },
+      { ...parametros, empresa_id: empresaId, actualizado_por: usuarioId },
       { onConflict: 'empresa_id' }
     )
     .select()
     .single();
 
   throwIfError(error, 'No se pudo guardar la configuración de compra');
-  return data;
+
+  let caja = await getCajaVigente(empresaId);
+  if (cajaNueva !== null && cajaNueva !== undefined &&
+      Number(cajaNueva) !== Number(caja?.disponible_cop)) {
+    caja = await registrarCaja(empresaId, usuarioId, cajaNueva);
+  }
+
+  return { ...data, caja_disponible_cop: caja?.disponible_cop ?? null };
 }
 
 export async function guardarCalidadCacao(empresaId, usuarioId, calidad) {
