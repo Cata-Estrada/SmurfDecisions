@@ -167,7 +167,40 @@
     },
     {
       "parameters": {
-        "jsCode": "// Toma el último cierre de Yahoo (CC=F) y la TRM vigente.\n// Devuelve un solo ítem con { bolsa, trm }; cada uno se guarda en su propio nodo,\n// así un fallo (o un dato ya registrado) en uno no impide guardar el otro.\nconst fechaBogota = ms => new Date(ms - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);\nlet bolsa = null;\nlet trm = null;\nconst errores = [];\n\ntry {\n  const r = $('Bolsa Nueva York (Yahoo)').first().json.chart.result[0];\n  const tiempos = r.timestamp || [];\n  const cierres = r.indicators.quote[0].close || [];\n  for (let k = tiempos.length - 1; k >= 0; k--) {\n    if (Number(cierres[k]) > 0) {\n      bolsa = { indicador_codigo: 'CACAO_NY', fecha: fechaBogota(tiempos[k] * 1000),\n        valor: Number(cierres[k]), fuente: 'Yahoo Finance · CC=F' };\n      break;\n    }\n  }\n  if (!bolsa) errores.push('Yahoo no devolvió cierres');\n} catch (e) { errores.push('Yahoo: ' + e.message); }\n\ntry {\n  const t = $('TRM oficial').first().json;\n  const valor = Number(t.valor);\n  if (valor > 0) {\n    trm = { indicador_codigo: 'TRM', fecha: String(t.vigenciadesde).slice(0, 10),\n      valor, fuente: 'Superintendencia Financiera · datos.gov.co' };\n  } else errores.push('TRM sin valor');\n} catch (e) { errores.push('TRM: ' + e.message); }\n\nreturn [{ json: { bolsa, trm, sin_datos: !bolsa && !trm, errores: errores.join('; ') } }];\n"
+        "url": "https://www.icco.org/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "5d2b014e-d337-57a8-b7ba-31b1bd3f4cde",
+      "name": "Londres (ICCO)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1010,
+        260
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Toma el último cierre de Yahoo (CC=F) y la TRM vigente.\n// Devuelve un solo ítem con { bolsa, trm }; cada uno se guarda en su propio nodo,\n// así un fallo (o un dato ya registrado) en uno no impide guardar el otro.\nconst fechaBogota = ms => new Date(ms - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);\nlet bolsa = null;\nlet trm = null;\nlet londres = null;\nconst errores = [];\n\ntry {\n  const r = $('Bolsa Nueva York (Yahoo)').first().json.chart.result[0];\n  const tiempos = r.timestamp || [];\n  const cierres = r.indicators.quote[0].close || [];\n  for (let k = tiempos.length - 1; k >= 0; k--) {\n    if (Number(cierres[k]) > 0) {\n      bolsa = { indicador_codigo: 'CACAO_NY', fecha: fechaBogota(tiempos[k] * 1000),\n        valor: Number(cierres[k]), fuente: 'Yahoo Finance · CC=F' };\n      break;\n    }\n  }\n  if (!bolsa) errores.push('Yahoo no devolvió cierres');\n} catch (e) { errores.push('Yahoo: ' + e.message); }\n\ntry {\n  const t = $('TRM oficial').first().json;\n  const valor = Number(t.valor);\n  if (valor > 0) {\n    trm = { indicador_codigo: 'TRM', fecha: String(t.vigenciadesde).slice(0, 10),\n      valor, fuente: 'Superintendencia Financiera · datos.gov.co' };\n  } else errores.push('TRM sin valor');\n} catch (e) { errores.push('TRM: ' + e.message); }\n\ntry {\n  // Tabla \"Cocoa Daily Prices\" de la ICCO: id | dd/mm/aaaa | Londres £/t | NY US$/t | ICCO US$/t | ICCO €/t\n  const html = String($('Londres (ICCO)').first().json.data || '');\n  const filas = [...html.matchAll(/<tr[^>]*>([\\s\\S]*?)<\\/tr>/g)]\n    .map(m => [...m[1].matchAll(/<td[^>]*>([\\s\\S]*?)<\\/td>/g)].map(c => c[1].replace(/<[^>]+>/g, '').trim()))\n    .filter(c => c.length >= 5 && /^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(c[1]))\n    .map(c => { const [d, m, a] = c[1].split('/'); return { fecha: `${a}-${m}-${d}`, valor: Number(c[2].replace(/,/g, '')) }; })\n    .filter(f => f.valor > 0)\n    .sort((x, y) => x.fecha.localeCompare(y.fecha));\n  const ultima = filas[filas.length - 1];\n  if (ultima) londres = { indicador_codigo: 'CACAO_LON', fecha: ultima.fecha, valor: ultima.valor, fuente: 'ICCO · Londres' };\n  else errores.push('ICCO sin tabla de precios');\n} catch (e) { errores.push('ICCO: ' + e.message); }\n\nreturn [{ json: { bolsa, trm, londres, sin_datos: !bolsa && !trm && !londres, errores: errores.join('; ') } }];\n"
       },
       "id": "51d1335a-f5e5-57eb-beff-06c02947bfa3",
       "name": "Armar valores",
@@ -250,7 +283,42 @@
     },
     {
       "parameters": {
-        "jsCode": "// Resume la ejecución. Un dato ya registrado ese día no es un error.\nconst valores = $('Armar valores').first().json;\nconst resultado = nodo => { try { return $(nodo).first().json; } catch (e) { return {}; } };\nconst guardados = [resultado('Guardar bolsa'), resultado('Guardar TRM')];\nconst nuevos = guardados.filter(g => g && g.id).length;\nconst fallos = guardados\n  .map((g, k) => g && g.error && !/duplicate key/i.test(String(g.error)) ? ['Bolsa', 'TRM'][k] + ': ' + g.error : null)\n  .filter(Boolean);\nconst mensajes = [valores.errores, ...fallos].filter(Boolean);\nreturn [{ json: {\n  flujo: 'precios',\n  fuente: 'Yahoo Finance (CC=F) + Superintendencia Financiera (TRM)',\n  inicio: $('Marcar inicio').first().json.inicio,\n  fin: new Date().toISOString(),\n  estado: valores.sin_datos || fallos.length ? 'error' : 'ok',\n  registros_nuevos: nuevos,\n  mensaje_error: mensajes.join('; '),\n  empresa_id: $('Empresa activa').first().json.id\n} }];\n"
+        "tableId": "valores_indicador",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "indicador_codigo",
+              "fieldValue": "={{ $('Armar valores').first().json.londres?.indicador_codigo ?? null }}"
+            },
+            {
+              "fieldId": "fecha",
+              "fieldValue": "={{ $('Armar valores').first().json.londres?.fecha ?? null }}"
+            },
+            {
+              "fieldId": "valor",
+              "fieldValue": "={{ $('Armar valores').first().json.londres?.valor ?? null }}"
+            },
+            {
+              "fieldId": "fuente",
+              "fieldValue": "={{ $('Armar valores').first().json.londres?.fuente ?? null }}"
+            }
+          ]
+        }
+      },
+      "id": "aea447ab-f9ed-5a8b-9882-5cafed6117eb",
+      "name": "Guardar Londres",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1670,
+        260
+      ],
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resume la ejecución. Un dato ya registrado ese día no es un error.\nconst valores = $('Armar valores').first().json;\nconst resultado = nodo => { try { return $(nodo).first().json; } catch (e) { return {}; } };\nconst guardados = [resultado('Guardar bolsa'), resultado('Guardar TRM'), resultado('Guardar Londres')];\nconst nuevos = guardados.filter(g => g && g.id).length;\nconst fallos = guardados\n  .map((g, k) => g && g.error && !/duplicate key/i.test(String(g.error)) ? ['Bolsa', 'TRM', 'Londres'][k] + ': ' + g.error : null)\n  .filter(Boolean);\nconst mensajes = [valores.errores, ...fallos].filter(Boolean);\nreturn [{ json: {\n  flujo: 'precios',\n  fuente: 'Yahoo Finance (CC=F) + Superintendencia Financiera (TRM) + ICCO (Londres)',\n  inicio: $('Marcar inicio').first().json.inicio,\n  fin: new Date().toISOString(),\n  estado: valores.sin_datos || fallos.length ? 'error' : 'ok',\n  registros_nuevos: nuevos,\n  mensaje_error: mensajes.join('; '),\n  empresa_id: $('Empresa activa').first().json.id\n} }];\n"
       },
       "id": "8dfdc718-0f0a-570c-b37d-a75791782bb3",
       "name": "Armar registro",
@@ -372,6 +440,17 @@
       "main": [
         [
           {
+            "node": "Londres (ICCO)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Londres (ICCO)": {
+      "main": [
+        [
+          {
             "node": "Armar valores",
             "type": "main",
             "index": 0
@@ -402,6 +481,17 @@
       ]
     },
     "Guardar TRM": {
+      "main": [
+        [
+          {
+            "node": "Guardar Londres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Londres": {
       "main": [
         [
           {

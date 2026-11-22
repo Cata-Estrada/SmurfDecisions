@@ -11,6 +11,7 @@ import {
 import PrecioCacaoChart from '../components/PrecioCacaoChart';
 import EscenariosCapital from '../components/EscenariosCapital';
 import Semaforo from '../components/Semaforo';
+import LecturaLondres from '../components/LecturaLondres';
 import { useAuth } from '../lib/authContext';
 import {
   eliminarCalidadCacao,
@@ -305,6 +306,8 @@ export default function CompraCacao() {
         </div>
       </section>
 
+      {cotizacionMercado?.londres && <LecturaLondres londres={cotizacionMercado.londres} />}
+
       {alertaMovimiento && (
         <div role="status" className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -565,13 +568,15 @@ export default function CompraCacao() {
             </div>
 
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-xs">
+              <table className="w-full min-w-[1000px] text-left text-xs">
                 <thead className="border-b border-slate-200 text-[10px] uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-2 py-2">Calidad</th>
                     <th className="px-2 py-2">Precio compra (COP/kg)</th>
                     <th className="px-2 py-2">Volumen (kg)</th>
                     <th className="px-2 py-2">Capital con acopio</th>
+                    <th className="px-2 py-2">Alcanza la caja</th>
+                    <th className="px-2 py-2">Margen cooperativa</th>
                     <th className="px-2 py-2">Costo producción</th>
                     <th className="px-2 py-2">Semáforo y acción</th>
                   </tr>
@@ -579,10 +584,25 @@ export default function CompraCacao() {
                 <tbody className="divide-y divide-slate-100">
                   {calculo.calidades.map((calidad) => (
                     <tr key={calidad.id || calidad.nombre}>
-                      <td className="px-2 py-2 font-semibold text-slate-800">{calidad.nombre}</td>
+                      <td className="px-2 py-2 font-semibold text-slate-800">
+                        {calidad.nombre}
+                        {calidad.esMayorMargen && (
+                        <span className="ml-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Mayor margen</span>
+                      )}
+                      </td>
                       <td className="px-2 py-2">{mostrarPesos(calidad.precioCompraCopKg, 2)}</td>
                       <td className="px-2 py-2">{mostrarNumero(calidad.volumen_kg)}</td>
                       <td className="px-2 py-2">{mostrarPesos(calidad.capitalConAcopio)}</td>
+                      <td className="px-2 py-2">
+                        {mostrarNumero(calidad.kgAlcanzables, { maximumFractionDigits: 0 })} kg
+                        <span className="block text-[10px] text-slate-500">
+                          solo esta: {mostrarNumero(calidad.kgMaximosSoloEstaCalidad, { maximumFractionDigits: 0 })} kg
+                        </span>
+                      </td>
+                      <td className="px-2 py-2">
+                        {mostrarPesos(calidad.margenCooperativaCopKg)}/kg
+                        <span className="block text-[10px] text-slate-500">{mostrarPorcentaje(calidad.margenPorPesoPct)} por peso</span>
+                      </td>
                       <td className="px-2 py-2">
                         {calidad.costo_produccion_cop_kg === '' || calidad.costo_produccion_cop_kg === null
                           ? 'No informado'

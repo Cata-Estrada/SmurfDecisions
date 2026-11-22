@@ -165,13 +165,25 @@ export function calcularCompraCacao(configuracion, calidades, precioReferencia, 
     if (!lista) return { ...calidad, lista: false };
 
     const precioCompraCopKg = precioKg(precio, diferencial, trm, margen);
-    const capitalConAcopio = volumen * precioCompraCopKg * (1 + acopio / 100);
+    const costoKgConAcopio = precioCompraCopKg * (1 + acopio / 100);
+    const capitalConAcopio = volumen * costoKgConAcopio;
+    // Margen de la cooperativa: valor de referencia (bolsa + diferencial, en pesos)
+    // menos lo que paga por kilo incluido el acopio.
+    const referenciaCopKg = (precio + diferencial) * trm / 1000;
+    const margenCooperativaCopKg = referenciaCopKg - costoKgConAcopio;
 
     return {
       ...calidad,
       lista: true,
       precioCompraCopKg,
       capitalConAcopio,
+      costoKgConAcopio,
+      margenCooperativaCopKg,
+      // Rentabilidad por cada peso de caja que se invierte en esta calidad.
+      margenPorPesoPct: costoKgConAcopio > 0 ? margenCooperativaCopKg / costoKgConAcopio * 100 : null,
+      // Si toda la caja (descontado el colchón) se usara solo en esta calidad.
+      kgMaximosSoloEstaCalidad: costoKgConAcopio > 0 && caja !== null && colchon !== null
+        ? caja / (1 + colchon / 100) / costoKgConAcopio : null,
       margenProductorCopKg: costoProduccion !== null ? precioCompraCopKg - costoProduccion : null,
       debajoCostoProduccion: costoProduccion !== null && precioCompraCopKg < costoProduccion,
       percentil25CopKg: mercado?.percentil25 != null
@@ -219,9 +231,50 @@ export function calcularCompraCacao(configuracion, calidades, precioReferencia, 
     ? (caja / (1 + colchon / 100) / factorPesos - sumaDiferencialesPonderados) / sumaVolumenPonderado
     : null;
 
+  // Límite de la caja: qué parte del volumen planeado alcanza a comprar hoy.
+  const fraccionCaja = capitalRequerido > 0 ? Math.min(1, caja / capitalRequerido) : 0;
+  const volumenTotalKg = resultadosCalidad.reduce((t, c) => t + Number(c.volumen_kg), 0);
+  const kgAlcanzablesTotal = volumenTotalKg * fraccionCaja;
+
+  // Calidad de mayor margen: la que más rinde por cada peso invertido
+  // (lo que importa cuando falta caja); si empatan, la de mayor margen por kilo.
+  const EPS = 1e-9;
+  const mayorMargen = [...resultadosCalidad].sort((a, b) =>
+    (b.margenPorPesoPct - a.margenPorPesoPct > EPS ? 1 : a.margenPorPesoPct - b.margenPorPesoPct > EPS ? -1 : 0) ||
+    b.margenCooperativaCopKg - a.margenCooperativaCopKg
+  )[0];
+  const idMayorMargen = mayorMargen ? (mayorMargen.id || mayorMargen.nombre) : null;
+  for (const calidad of resultadosCalidad) {
+    calidad.kgAlcanzables = Number(calidad.volumen_kg) * fraccionCaja;
+    calidad.esMayorMargen = (calidad.id || calidad.nombre) === idMayorMargen;
+  }
+
   // Recomendación general y por calidad.
   const nivelPrecio = mercado?.nivelPrecio ?? null;
   const regla = nivelPrecio && cobertura ? buscarRegla(opciones.reglas, nivelPrecio, cobertura) : null;
+
+  const concretar = (texto, calidad) => {
+    let t = texto;
+    if (/l[ií]mite de la caja/i.test(t) && calidad) {
+      t += ` Con la caja actual alcanzan ${Math.round(calidad.kgAlcanzables).toLocaleString('es-CO')} kg de los ${Math.round(Number(calidad.volumen_kg)).toLocaleString('es-CO')} kg planeados`
+        + ` (o hasta ${Math.round(calidad.kgMaximosSoloEstaCalidad).toLocaleString('es-CO')} kg si toda la caja va a esta calidad).`;
+    }
+    if (/mayor margen/i.test(t) && mayorMargen) {
+      t += ` Hoy la de mayor margen es ${mayorMargen.nombre}.`;
+    }
+    return t;
+  };
+
+  const concretarGeneral = (texto) => {
+    let t = texto;
+    if (/l[ií]mite de la caja/i.test(t)) {
+      t += fraccionCaja >= 1
+        ? ' La caja cubre todo el volumen planeado.'
+        : ` Con la caja actual alcanzan ${Math.round(kgAlcanzablesTotal).toLocaleString('es-CO')} kg de los ${Math.round(volumenTotalKg).toLocaleString('es-CO')} kg planeados (${Math.round(fraccionCaja * 100)} %).`;
+    }
+    if (/mayor margen/i.test(t) && mayorMargen) t += ` Hoy la de mayor margen es ${mayorMargen.nombre}.`;
+    return t;
+  };
 
   const calidadesConRecomendacion = resultadosCalidad.map((calidad) => {
     if (!regla) return { ...calidad, recomendacion: null, semaforo: calidad.debajoCostoProduccion ? 'rojo' : null };
@@ -230,14 +283,14 @@ export function calcularCompraCacao(configuracion, calidades, precioReferencia, 
         ...calidad,
         recomendacion: {
           titulo: 'Alerta de precio de equilibrio',
-          recomendacion: `El precio de compra queda bajo el costo de producción: el productor estaría trabajando a pérdida. ${regla.recomendacion}`
+          recomendacion: `El precio de compra queda bajo el costo de producción: el productor estaría trabajando a pérdida. ${concretar(regla.recomendacion, calidad)}`
         },
         semaforo: 'rojo'
       };
     }
     return {
       ...calidad,
-      recomendacion: { titulo: regla.titulo, recomendacion: regla.recomendacion },
+      recomendacion: { titulo: regla.titulo, recomendacion: concretar(regla.recomendacion, calidad) },
       semaforo: regla.semaforo
     };
   });
@@ -247,6 +300,10 @@ export function calcularCompraCacao(configuracion, calidades, precioReferencia, 
     listo: true,
     capitalAntesColchon,
     capitalRequerido,
+    fraccionCaja,
+    volumenTotalKg,
+    kgAlcanzablesTotal,
+    mayorMargen: mayorMargen ? { nombre: mayorMargen.nombre, margenPorPesoPct: mayorMargen.margenPorPesoPct, margenCooperativaCopKg: mayorMargen.margenCooperativaCopKg } : null,
     coberturaPct,
     cobertura,
     brechaCop,
@@ -255,7 +312,7 @@ export function calcularCompraCacao(configuracion, calidades, precioReferencia, 
     recomendacion: regla
       ? {
           titulo: regla.titulo,
-          recomendacion: regla.recomendacion.replace(/ de esta calidad/gi, ''),
+          recomendacion: concretarGeneral(regla.recomendacion.replace(/ de esta calidad/gi, '')),
           semaforo: regla.semaforo
         }
       : null

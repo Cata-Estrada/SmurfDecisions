@@ -265,7 +265,12 @@ export default function Recomendador() {
             {calculo.calidades.map((calidad) => (
               <article key={calidad.id || calidad.nombre} className="flex flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-bold text-slate-900">{calidad.nombre}</h3>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    {calidad.nombre}
+                    {calidad.esMayorMargen && (
+                        <span className="ml-2 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Mayor margen</span>
+                      )}
+                  </h3>
                   {calidad.semaforo && <Semaforo color={calidad.semaforo} />}
                 </div>
                 <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">
@@ -290,6 +295,26 @@ export default function Recomendador() {
                   <div>
                     <dt className="text-slate-500">Pendiente en el plan</dt>
                     <dd className="font-semibold text-slate-800">{mostrarNumero(pendientePorCalidad[calidad.id] || 0)} kg</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Alcanza la caja</dt>
+                    <dd className="font-semibold text-slate-800">
+                      {calidad.kgAlcanzables != null ? `${mostrarNumero(calidad.kgAlcanzables, { maximumFractionDigits: 0 })} kg` : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Solo esta calidad, toda la caja</dt>
+                    <dd className="font-semibold text-slate-800">
+                      {calidad.kgMaximosSoloEstaCalidad != null ? `${mostrarNumero(calidad.kgMaximosSoloEstaCalidad, { maximumFractionDigits: 0 })} kg` : '—'}
+                    </dd>
+                  </div>
+                  <div className="col-span-2">
+                    <dt className="text-slate-500">Margen de la cooperativa</dt>
+                    <dd className="font-semibold text-slate-800">
+                      {calidad.margenCooperativaCopKg != null
+                        ? `${mostrarPesos(calidad.margenCooperativaCopKg)}/kg · ${mostrarPorcentaje(calidad.margenPorPesoPct)} por peso invertido`
+                        : '—'}
+                    </dd>
                   </div>
                   {calidad.margenProductorCopKg != null && (
                     <div className="col-span-2">

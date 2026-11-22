@@ -1,14 +1,16 @@
 // ==============================================================================
 // Edge Function: precio-cacao
 // Devuelve la cotización del futuro de cacao ICE (Yahoo Finance, CC=F) con su
-// historial diario de 5 años y, si se pide, la TRM oficial vigente
-// (Superintendencia Financiera, datos.gov.co).
+// historial diario de 5 años; si se pide, la TRM oficial vigente
+// (Superintendencia Financiera, datos.gov.co); y la segunda lectura de Londres
+// (tabla "Cocoa Daily Prices" de la ICCO, en £/t, con unos días de retraso).
 //
 // Respuesta:
 // {
 //   quote:  { price, timestamp, changePercent, currency, source },
 //   points: [{ timestamp, price }],        // cierres diarios, timestamp en ms
 //   trm:    { value, validFrom, validTo, source } | { error }   // solo si includeTrm
+//   londres: { fecha, gbpT, usdT, gbpUsd, nyUsdT, iccoUsdT, source } | { error }
 // }
 //
 // Despliegue:  supabase functions deploy precio-cacao
@@ -18,6 +20,9 @@
 const YAHOO_URL =
   'https://query1.finance.yahoo.com/v8/finance/chart/CC=F?range=5y&interval=1d';
 const TRM_URL = 'https://www.datos.gov.co/resource/32sa-8pi3.json';
+const ICCO_URL = 'https://www.icco.org/';
+const GBPUSD_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/GBPUSD=X?range=3mo&interval=1d';
+const CACHE_LONDRES_MS = 6 * 60 * 60 * 1000;
 
 const CACHE_COTIZACION_MS = 5 * 60 * 1000;
 const CACHE_TRM_MS = 60 * 60 * 1000;
@@ -41,15 +46,34 @@ type Cotizacion = {
   points: Punto[];
 };
 type Trm = { value: number; validFrom: string; validTo: string; source: string };
+type Londres = {
+  fecha: string;      // ISO (YYYY-MM-DD) del dato publicado por la ICCO
+  gbpT: number;       // futuro de Londres, £/t
+  usdT: number | null; // convertido a US$/t con el GBP/USD de ese día
+  gbpUsd: number | null;
+  nyUsdT: number;     // Nueva York ese mismo día según la ICCO (para comparar)
+  iccoUsdT: number;   // precio diario ICCO
+  source: string;
+};
 
 let cacheCotizacion: { datos: Cotizacion; hasta: number } | null = null;
 let cacheTrm: { datos: Trm; hasta: number } | null = null;
+let cacheLondres: { datos: Londres; hasta: number } | null = null;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
+}
+
+async function obtenerTexto(url: string) {
+  const respuesta = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'text/html' },
+    signal: AbortSignal.timeout(TIEMPO_MAXIMO_MS)
+  });
+  if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status} en ${new URL(url).host}`);
+  return respuesta.text();
 }
 
 async function obtenerJson(url: string) {
@@ -131,26 +155,82 @@ async function consultarTrm(): Promise<Trm> {
   return trm;
 }
 
+function numero(texto: string) {
+  return Number(texto.replace(/,/g, ''));
+}
+
+// Lee la tabla "Cocoa Daily Prices" de la página de inicio de la ICCO.
+// Columnas: id | fecha (dd/mm/aaaa) | Londres £/t | Nueva York US$/t | ICCO US$/t | ICCO €/t
+async function consultarLondres(): Promise<Londres> {
+  if (cacheLondres && cacheLondres.hasta > Date.now()) return cacheLondres.datos;
+
+  const html = await obtenerTexto(ICCO_URL);
+  const filas = [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)]
+    .map((m) => [...m[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
+      .map((c) => c[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()))
+    .filter((c) => c.length >= 5 && /^\d{2}\/\d{2}\/\d{4}$/.test(c[1]));
+  if (filas.length === 0) throw new Error('La ICCO no publicó la tabla de precios diarios.');
+
+  const conFecha = filas.map((c) => {
+    const [d, m, a] = c[1].split('/');
+    return { fecha: `${a}-${m}-${d}`, gbpT: numero(c[2]), nyUsdT: numero(c[3]), iccoUsdT: numero(c[4]) };
+  }).filter((f) => f.gbpT > 0).sort((x, y) => x.fecha.localeCompare(y.fecha));
+  const ultimo = conFecha[conFecha.length - 1];
+  if (!ultimo) throw new Error('La tabla de la ICCO no trae un precio de Londres válido.');
+
+  // GBP/USD del mismo día (o el anterior más cercano) para convertir a dólares.
+  let gbpUsd: number | null = null;
+  try {
+    const r = (await obtenerJson(GBPUSD_URL))?.chart?.result?.[0];
+    const tiempos: number[] = r?.timestamp ?? [];
+    const cierres: (number | null)[] = r?.indicators?.quote?.[0]?.close ?? [];
+    for (let k = tiempos.length - 1; k >= 0; k--) {
+      const dia = new Date(tiempos[k] * 1000).toISOString().slice(0, 10);
+      if (dia <= ultimo.fecha && Number(cierres[k]) > 0) { gbpUsd = Number(cierres[k]); break; }
+    }
+  } catch (_) {
+    gbpUsd = null;
+  }
+
+  const londres: Londres = {
+    ...ultimo,
+    gbpUsd,
+    usdT: gbpUsd ? ultimo.gbpT * gbpUsd : null,
+    source: 'ICCO · Cocoa Daily Prices (Londres, ICE Futures Europe)'
+  };
+  cacheLondres = { datos: londres, hasta: Date.now() + CACHE_LONDRES_MS };
+  return londres;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Método no permitido' }, 405);
 
   let includeTrm = true;
+  let includeLondres = true;
   try {
     const body = await req.json();
     if (body?.includeTrm === false) includeTrm = false;
+    if (body?.includeLondres === false) includeLondres = false;
   } catch {
     // Sin cuerpo: se usa el valor por defecto.
   }
 
   try {
-    const [cotizacion, trm] = await Promise.all([
+    const [cotizacion, trm, londres] = await Promise.all([
       consultarCotizacion(),
       includeTrm
         ? consultarTrm().catch((error) => ({ error: `TRM no disponible: ${error.message}` }))
+        : Promise.resolve(undefined),
+      includeLondres
+        ? consultarLondres().catch((error) => ({ error: `Londres no disponible: ${error.message}` }))
         : Promise.resolve(undefined)
     ]);
-    return json(trm === undefined ? cotizacion : { ...cotizacion, trm });
+    return json({
+      ...cotizacion,
+      ...(trm === undefined ? {} : { trm }),
+      ...(londres === undefined ? {} : { londres })
+    });
   } catch (error) {
     console.error('[precio-cacao]', error);
     return json({ error: `No se pudo consultar el precio del cacao: ${(error as Error).message}` }, 502);

@@ -18,6 +18,7 @@ import { ETIQUETA_COBERTURA, ETIQUETA_NIVEL } from '../lib/compraCacao';
 import { EFECTOS_PRECIO, nombreDriver } from '../lib/catalogos';
 import { mostrarMillones, mostrarNumero, mostrarPesos, mostrarPorcentaje } from '../lib/formato';
 import Semaforo, { estiloSemaforo } from '../components/Semaforo';
+import LecturaLondres from '../components/LecturaLondres';
 
 const SEMAFORO_COBERTURA = { holgada: 'verde', ajustada: 'amarillo', deficit: 'rojo' };
 const SEMAFORO_NIVEL = { bajo: 'verde', medio: 'amarillo', alto: 'rojo' };
@@ -159,6 +160,7 @@ export default function PanelEjecutivo() {
           {mercado.nivelPrecio && (
             <Semaforo color={SEMAFORO_NIVEL[mercado.nivelPrecio]} etiqueta={`Precio ${ETIQUETA_NIVEL[mercado.nivelPrecio].toLowerCase()}`} />
           )}
+          <div className="mt-2"><LecturaLondres londres={cotizacion?.londres} compacta /></div>
         </Tarjeta>
         <Tarjeta
           titulo="TRM del cálculo"
@@ -193,7 +195,18 @@ export default function PanelEjecutivo() {
         <div className="flex items-center justify-between border-b border-slate-100 p-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900">Precio por kilo y semáforo por calidad</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Rango esperado: el precio por kilo si la bolsa estuviera en su P25 y su P75 de {mercado.ventanaDias} días.</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Rango esperado: el precio por kilo si la bolsa estuviera en su P25 y su P75 de {mercado.ventanaDias} días.
+              {' '}Alcanza la caja: kilos del plan que se pueden pagar hoy. Margen: valor de referencia menos precio de compra y acopio.
+            </p>
+            {calculo.listo && (
+              <p className="mt-1 text-xs font-semibold text-slate-700">
+                {calculo.fraccionCaja >= 1
+                  ? `La caja cubre los ${mostrarNumero(calculo.volumenTotalKg, { maximumFractionDigits: 0 })} kg planeados.`
+                  : `La caja alcanza para ${mostrarNumero(calculo.kgAlcanzablesTotal, { maximumFractionDigits: 0 })} de ${mostrarNumero(calculo.volumenTotalKg, { maximumFractionDigits: 0 })} kg (${mostrarPorcentaje(calculo.fraccionCaja * 100)}).`}
+                {calculo.mayorMargen && ` Mayor margen: ${calculo.mayorMargen.nombre} (${mostrarPorcentaje(calculo.mayorMargen.margenPorPesoPct)} por peso invertido).`}
+              </p>
+            )}
           </div>
         </div>
         {calculo.calidades.length === 0 ? (
@@ -202,13 +215,15 @@ export default function PanelEjecutivo() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-xs">
+            <table className="w-full min-w-[900px] text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-2">Calidad</th>
                   <th className="px-4 py-2 text-right">Precio de compra</th>
                   <th className="px-4 py-2 text-right">Rango P25 – P75</th>
                   <th className="px-4 py-2 text-right">Volumen</th>
+                  <th className="px-4 py-2 text-right">Alcanza la caja</th>
+                  <th className="px-4 py-2 text-right">Margen</th>
                   <th className="px-4 py-2 text-right">Capital</th>
                   <th className="px-4 py-2">Acción</th>
                 </tr>
@@ -216,7 +231,12 @@ export default function PanelEjecutivo() {
               <tbody className="divide-y divide-slate-100 tabular-nums">
                 {calculo.calidades.map((calidad) => (
                   <tr key={calidad.id || calidad.nombre}>
-                    <td className="px-4 py-3 font-semibold text-slate-800">{calidad.nombre}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-800">
+                      {calidad.nombre}
+                      {calidad.esMayorMargen && (
+                        <span className="ml-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Mayor margen</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-900">
                       {calidad.lista ? `${mostrarPesos(calidad.precioCompraCopKg)}/kg` : 'Incompleta'}
                     </td>
@@ -226,6 +246,12 @@ export default function PanelEjecutivo() {
                         : '—'}
                     </td>
                     <td className="px-4 py-3 text-right text-slate-600">{mostrarNumero(calidad.volumen_kg)} kg</td>
+                    <td className="px-4 py-3 text-right text-slate-600">
+                      {calidad.kgAlcanzables != null ? `${mostrarNumero(calidad.kgAlcanzables, { maximumFractionDigits: 0 })} kg` : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-600">
+                      {calidad.margenCooperativaCopKg != null ? `${mostrarPesos(calidad.margenCooperativaCopKg)}/kg` : '—'}
+                    </td>
                     <td className="px-4 py-3 text-right text-slate-600">{mostrarMillones(calidad.capitalConAcopio)}</td>
                     <td className="px-4 py-3">
                       {calidad.recomendacion ? (
@@ -286,7 +312,7 @@ export default function PanelEjecutivo() {
       </section>
 
       <p className="text-[11px] text-slate-500">
-        Bolsa: futuro de cacao ICE (CC=F) vía Yahoo Finance, fuente no oficial que puede tener retraso.
+        Bolsa: futuro de cacao ICE (CC=F) vía Yahoo Finance, fuente no oficial que puede tener retraso. Londres: tabla diaria de la ICCO.
         {' '}TRM: Superintendencia Financiera. Calidades, caja y umbrales: parámetros de la cooperativa.
       </p>
     </div>

@@ -65,7 +65,7 @@ function PrecioDiario({ empresaId, puedeEditar }) {
 
   async function cargar() {
     const { data } = await getValoresIndicadores(empresaId);
-    setValores(data.filter((v) => v.indicador_codigo === 'CACAO_NY').slice(0, 10));
+    setValores(data.filter((v) => ['CACAO_NY', 'CACAO_LON'].includes(v.indicador_codigo)).slice(0, 12));
   }
   useEffect(() => { cargar().catch((e) => setMensaje({ error: true, texto: e.message })); }, [empresaId]);
 
@@ -88,9 +88,16 @@ function PrecioDiario({ empresaId, puedeEditar }) {
     setOcupado(true);
     setMensaje(null);
     try {
-      const datos = await getPrecioCacaoMercado({ includeTrm: false });
+      const datos = await getPrecioCacaoMercado({ includeTrm: false, includeLondres: true });
       const ultimo = datos.points[datos.points.length - 1];
       await guardar({ fecha: fechaDeTimestamp(ultimo.timestamp), valor: ultimo.price }, 'Yahoo Finance · CC=F');
+      if (datos.londres?.gbpT) {
+        await registrarValorIndicador({
+          codigo: 'CACAO_LON', fecha: datos.londres.fecha, valor: datos.londres.gbpT, fuente: 'ICCO · Londres'
+        });
+        setMensaje({ texto: `Guardados Nueva York (${formatearFechaPublicacion(fechaDeTimestamp(ultimo.timestamp))}) y Londres (${formatearFechaPublicacion(datos.londres.fecha)}).` });
+        await cargar();
+      }
     } catch (e) {
       setMensaje({ error: true, texto: e.message });
       setOcupado(false);
@@ -121,20 +128,21 @@ function PrecioDiario({ empresaId, puedeEditar }) {
         </button>
         <button type="button" onClick={traerDeYahoo} disabled={!puedeEditar || ocupado}
           className="rounded border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-          Guardar último cierre de Yahoo
+          Guardar últimos cierres (NY y Londres)
         </button>
       </div>
       <Mensaje mensaje={mensaje} />
       {valores.length > 0 && (
         <table className="mt-4 w-full text-left text-xs">
           <thead className="text-[10px] uppercase tracking-wide text-slate-500">
-            <tr><th className="py-1">Fecha</th><th className="py-1 text-right">USD/t</th><th className="py-1">Fuente</th></tr>
+            <tr><th className="py-1">Fecha</th><th className="py-1">Bolsa</th><th className="py-1 text-right">Precio</th><th className="py-1">Fuente</th></tr>
           </thead>
           <tbody className="divide-y divide-slate-100 tabular-nums">
             {valores.map((v) => (
               <tr key={v.id}>
                 <td className="py-1.5">{formatearFechaPublicacion(v.fecha)}</td>
-                <td className="py-1.5 text-right font-semibold">{mostrarNumero(v.valor)}</td>
+                <td className="py-1.5">{v.indicador_codigo === 'CACAO_LON' ? 'Londres' : 'Nueva York'}</td>
+                <td className="py-1.5 text-right font-semibold">{v.indicador_codigo === 'CACAO_LON' ? '£' : 'US$'} {mostrarNumero(v.valor)}</td>
                 <td className="py-1.5 text-slate-500">{v.fuente}</td>
               </tr>
             ))}

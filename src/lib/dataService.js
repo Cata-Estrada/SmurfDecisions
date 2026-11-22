@@ -306,13 +306,13 @@ export async function eliminarCalidadCacao(id, empresaId) {
   throwIfError(error, 'No se pudo eliminar la calidad de cacao');
 }
 
-export async function getPrecioCacaoMercado({ includeTrm = true } = {}) {
+export async function getPrecioCacaoMercado({ includeTrm = true, includeLondres = true } = {}) {
   if (!isSupabaseConfigured || !supabase) {
     throw new Error('Supabase no está configurado. No se puede consultar la cotización del cacao.');
   }
 
   const { data, error } = await supabase.functions.invoke('precio-cacao', {
-    body: { includeTrm }
+    body: { includeTrm, includeLondres }
   });
   if (error) {
     if (error.name === 'FunctionsFetchError') {
