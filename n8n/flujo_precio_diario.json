@@ -167,7 +167,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Toma el último cierre de Yahoo (CC=F) y la TRM vigente, y arma una fila por indicador.\nconst fechaBogota = ms => new Date(ms - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);\nconst filas = [];\nconst errores = [];\n\ntry {\n  const r = $('Bolsa Nueva York (Yahoo)').first().json.chart.result[0];\n  const tiempos = r.timestamp || [];\n  const cierres = r.indicators.quote[0].close || [];\n  for (let k = tiempos.length - 1; k >= 0; k--) {\n    if (Number(cierres[k]) > 0) {\n      filas.push({ indicador_codigo: 'CACAO_NY', fecha: fechaBogota(tiempos[k] * 1000),\n        valor: Number(cierres[k]), fuente: 'Yahoo Finance · CC=F' });\n      break;\n    }\n  }\n  if (!filas.length) errores.push('Yahoo no devolvió cierres');\n} catch (e) { errores.push('Yahoo: ' + e.message); }\n\ntry {\n  const t = $('TRM oficial').first().json;\n  const valor = Number(t.valor);\n  if (valor > 0) {\n    filas.push({ indicador_codigo: 'TRM', fecha: String(t.vigenciadesde).slice(0, 10),\n      valor, fuente: 'Superintendencia Financiera · datos.gov.co' });\n  } else errores.push('TRM sin valor');\n} catch (e) { errores.push('TRM: ' + e.message); }\n\nreturn filas.length\n  ? filas.map(f => ({ json: { ...f, errores: errores.join('; ') } }))\n  : [{ json: { sin_datos: true, errores: errores.join('; ') } }];\n"
+        "jsCode": "// Toma el último cierre de Yahoo (CC=F) y la TRM vigente.\n// Devuelve un solo ítem con { bolsa, trm }; cada uno se guarda en su propio nodo,\n// así un fallo (o un dato ya registrado) en uno no impide guardar el otro.\nconst fechaBogota = ms => new Date(ms - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);\nlet bolsa = null;\nlet trm = null;\nconst errores = [];\n\ntry {\n  const r = $('Bolsa Nueva York (Yahoo)').first().json.chart.result[0];\n  const tiempos = r.timestamp || [];\n  const cierres = r.indicators.quote[0].close || [];\n  for (let k = tiempos.length - 1; k >= 0; k--) {\n    if (Number(cierres[k]) > 0) {\n      bolsa = { indicador_codigo: 'CACAO_NY', fecha: fechaBogota(tiempos[k] * 1000),\n        valor: Number(cierres[k]), fuente: 'Yahoo Finance · CC=F' };\n      break;\n    }\n  }\n  if (!bolsa) errores.push('Yahoo no devolvió cierres');\n} catch (e) { errores.push('Yahoo: ' + e.message); }\n\ntry {\n  const t = $('TRM oficial').first().json;\n  const valor = Number(t.valor);\n  if (valor > 0) {\n    trm = { indicador_codigo: 'TRM', fecha: String(t.vigenciadesde).slice(0, 10),\n      valor, fuente: 'Superintendencia Financiera · datos.gov.co' };\n  } else errores.push('TRM sin valor');\n} catch (e) { errores.push('TRM: ' + e.message); }\n\nreturn [{ json: { bolsa, trm, sin_datos: !bolsa && !trm, errores: errores.join('; ') } }];\n"
       },
       "id": "51d1335a-f5e5-57eb-beff-06c02947bfa3",
       "name": "Armar valores",
@@ -180,37 +180,38 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
+        "tableId": "valores_indicador",
+        "fieldsUi": {
+          "fieldValues": [
             {
-              "id": "44724613-93cc-5a7c-9c2c-0b789f210b10",
-              "leftValue": "={{ !$json.sin_datos }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
+              "fieldId": "indicador_codigo",
+              "fieldValue": "={{ $('Armar valores').first().json.bolsa?.indicador_codigo ?? null }}"
+            },
+            {
+              "fieldId": "fecha",
+              "fieldValue": "={{ $('Armar valores').first().json.bolsa?.fecha ?? null }}"
+            },
+            {
+              "fieldId": "valor",
+              "fieldValue": "={{ $('Armar valores').first().json.bolsa?.valor ?? null }}"
+            },
+            {
+              "fieldId": "fuente",
+              "fieldValue": "={{ $('Armar valores').first().json.bolsa?.fuente ?? null }}"
             }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+          ]
+        }
       },
-      "id": "abe824eb-7ee6-53be-abf7-1dfc40c286f2",
-      "name": "¿Hay datos?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
+      "id": "42fb451f-126d-56c3-aa2a-7fb64d367f26",
+      "name": "Guardar bolsa",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
         1340,
         100
-      ]
+      ],
+      "onError": "continueRegularOutput",
+      "executeOnce": true
     },
     {
       "parameters": {
@@ -219,93 +220,42 @@
           "fieldValues": [
             {
               "fieldId": "indicador_codigo",
-              "fieldValue": "={{ $json.indicador_codigo }}"
+              "fieldValue": "={{ $('Armar valores').first().json.trm?.indicador_codigo ?? null }}"
             },
             {
               "fieldId": "fecha",
-              "fieldValue": "={{ $json.fecha }}"
+              "fieldValue": "={{ $('Armar valores').first().json.trm?.fecha ?? null }}"
             },
             {
               "fieldId": "valor",
-              "fieldValue": "={{ $json.valor }}"
+              "fieldValue": "={{ $('Armar valores').first().json.trm?.valor ?? null }}"
             },
             {
               "fieldId": "fuente",
-              "fieldValue": "={{ $json.fuente }}"
+              "fieldValue": "={{ $('Armar valores').first().json.trm?.fuente ?? null }}"
             }
           ]
         }
       },
-      "id": "d6b4a021-6ca4-56ae-920e-2255c8091955",
-      "name": "Guardar valor",
+      "id": "31b05f41-1428-542c-9a5f-4bf8b7795fdb",
+      "name": "Guardar TRM",
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
         1560,
-        0
+        100
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "executeOnce": true
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "4ece3eec-ebd6-5f20-9a28-d9cc8ed4ef4a",
-              "name": "flujo",
-              "value": "precios",
-              "type": "string"
-            },
-            {
-              "id": "ff1575be-248e-52cd-be34-6988d33072b1",
-              "name": "fuente",
-              "value": "Yahoo Finance (CC=F) + Superintendencia Financiera (TRM)",
-              "type": "string"
-            },
-            {
-              "id": "8f8bc812-0583-584e-ad4c-8ddf27ba88c2",
-              "name": "inicio",
-              "value": "={{ $('Marcar inicio').first().json.inicio }}",
-              "type": "string"
-            },
-            {
-              "id": "c9e5c2d7-b033-5ca3-ac3b-3dcaf90a270a",
-              "name": "fin",
-              "value": "={{ $now.toISO() }}",
-              "type": "string"
-            },
-            {
-              "id": "3a8c6a31-7c5a-5d4b-910b-9c948f91c5fc",
-              "name": "estado",
-              "value": "={{ $('Armar valores').first().json.sin_datos ? 'error' : 'ok' }}",
-              "type": "string"
-            },
-            {
-              "id": "895ea964-38d4-5bf2-9915-f9b34a8453d1",
-              "name": "registros_nuevos",
-              "value": "={{ $('Guardar valor').isExecuted ? $('Guardar valor').all().filter(i => i.json.id).length : 0 }}",
-              "type": "number"
-            },
-            {
-              "id": "16623c8a-3fec-5d61-891d-a359bb144e2f",
-              "name": "mensaje_error",
-              "value": "={{ $('Armar valores').first().json.errores || '' }}",
-              "type": "string"
-            },
-            {
-              "id": "198ee0e9-2f38-5c85-a16c-04a9db9534f4",
-              "name": "empresa_id",
-              "value": "={{ $('Empresa activa').first().json.id }}",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
+        "jsCode": "// Resume la ejecución. Un dato ya registrado ese día no es un error.\nconst valores = $('Armar valores').first().json;\nconst resultado = nodo => { try { return $(nodo).first().json; } catch (e) { return {}; } };\nconst guardados = [resultado('Guardar bolsa'), resultado('Guardar TRM')];\nconst nuevos = guardados.filter(g => g && g.id).length;\nconst fallos = guardados\n  .map((g, k) => g && g.error && !/duplicate key/i.test(String(g.error)) ? ['Bolsa', 'TRM'][k] + ': ' + g.error : null)\n  .filter(Boolean);\nconst mensajes = [valores.errores, ...fallos].filter(Boolean);\nreturn [{ json: {\n  flujo: 'precios',\n  fuente: 'Yahoo Finance (CC=F) + Superintendencia Financiera (TRM)',\n  inicio: $('Marcar inicio').first().json.inicio,\n  fin: new Date().toISOString(),\n  estado: valores.sin_datos || fallos.length ? 'error' : 'ok',\n  registros_nuevos: nuevos,\n  mensaje_error: mensajes.join('; '),\n  empresa_id: $('Empresa activa').first().json.id\n} }];\n"
       },
       "id": "8dfdc718-0f0a-570c-b37d-a75791782bb3",
       "name": "Armar registro",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         1780,
         100
@@ -433,32 +383,25 @@
       "main": [
         [
           {
-            "node": "¿Hay datos?",
+            "node": "Guardar bolsa",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "¿Hay datos?": {
+    "Guardar bolsa": {
       "main": [
         [
           {
-            "node": "Guardar valor",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Armar registro",
+            "node": "Guardar TRM",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Guardar valor": {
+    "Guardar TRM": {
       "main": [
         [
           {

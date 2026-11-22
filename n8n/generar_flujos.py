@@ -357,9 +357,12 @@ noticias = flujo('Noticias del cacao', noticias_nodos, conectar(
 # 2. Precio diario (bolsa y TRM)
 # ──────────────────────────────────────────────────────────────────────────────
 JS_VALORES = r"""
-// Toma el último cierre de Yahoo (CC=F) y la TRM vigente, y arma una fila por indicador.
+// Toma el último cierre de Yahoo (CC=F) y la TRM vigente.
+// Devuelve un solo ítem con { bolsa, trm }; cada uno se guarda en su propio nodo,
+// así un fallo (o un dato ya registrado) en uno no impide guardar el otro.
 const fechaBogota = ms => new Date(ms - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
-const filas = [];
+let bolsa = null;
+let trm = null;
 const errores = [];
 
 try {
@@ -368,26 +371,46 @@ try {
   const cierres = r.indicators.quote[0].close || [];
   for (let k = tiempos.length - 1; k >= 0; k--) {
     if (Number(cierres[k]) > 0) {
-      filas.push({ indicador_codigo: 'CACAO_NY', fecha: fechaBogota(tiempos[k] * 1000),
-        valor: Number(cierres[k]), fuente: 'Yahoo Finance · CC=F' });
+      bolsa = { indicador_codigo: 'CACAO_NY', fecha: fechaBogota(tiempos[k] * 1000),
+        valor: Number(cierres[k]), fuente: 'Yahoo Finance · CC=F' };
       break;
     }
   }
-  if (!filas.length) errores.push('Yahoo no devolvió cierres');
+  if (!bolsa) errores.push('Yahoo no devolvió cierres');
 } catch (e) { errores.push('Yahoo: ' + e.message); }
 
 try {
   const t = $('TRM oficial').first().json;
   const valor = Number(t.valor);
   if (valor > 0) {
-    filas.push({ indicador_codigo: 'TRM', fecha: String(t.vigenciadesde).slice(0, 10),
-      valor, fuente: 'Superintendencia Financiera · datos.gov.co' });
+    trm = { indicador_codigo: 'TRM', fecha: String(t.vigenciadesde).slice(0, 10),
+      valor, fuente: 'Superintendencia Financiera · datos.gov.co' };
   } else errores.push('TRM sin valor');
 } catch (e) { errores.push('TRM: ' + e.message); }
 
-return filas.length
-  ? filas.map(f => ({ json: { ...f, errores: errores.join('; ') } }))
-  : [{ json: { sin_datos: true, errores: errores.join('; ') } }];
+return [{ json: { bolsa, trm, sin_datos: !bolsa && !trm, errores: errores.join('; ') } }];
+"""
+
+JS_REGISTRO_PRECIOS = r"""
+// Resume la ejecución. Un dato ya registrado ese día no es un error.
+const valores = $('Armar valores').first().json;
+const resultado = nodo => { try { return $(nodo).first().json; } catch (e) { return {}; } };
+const guardados = [resultado('Guardar bolsa'), resultado('Guardar TRM')];
+const nuevos = guardados.filter(g => g && g.id).length;
+const fallos = guardados
+  .map((g, k) => g && g.error && !/duplicate key/i.test(String(g.error)) ? ['Bolsa', 'TRM'][k] + ': ' + g.error : null)
+  .filter(Boolean);
+const mensajes = [valores.errores, ...fallos].filter(Boolean);
+return [{ json: {
+  flujo: 'precios',
+  fuente: 'Yahoo Finance (CC=F) + Superintendencia Financiera (TRM)',
+  inicio: $('Marcar inicio').first().json.inicio,
+  fin: new Date().toISOString(),
+  estado: valores.sin_datos || fallos.length ? 'error' : 'ok',
+  registros_nuevos: nuevos,
+  mensaje_error: mensajes.join('; '),
+  empresa_id: $('Empresa activa').first().json.id
+} }];
 """
 
 precios_nodos = [
@@ -418,30 +441,19 @@ precios_nodos = [
         'options': {'timeout': 20000},
     }, onError='continueRegularOutput', retryOnFail=True, executeOnce=True),
     codigo('Armar valores', [1120, 100], JS_VALORES),
-    si('¿Hay datos?', [1340, 100], '={{ !$json.sin_datos }}'),
-    supabase_crear('Guardar valor', [1560, 0], 'valores_indicador', [
-        ('indicador_codigo', '={{ $json.indicador_codigo }}'),
-        ('fecha', '={{ $json.fecha }}'),
-        ('valor', '={{ $json.valor }}'),
-        ('fuente', '={{ $json.fuente }}'),
-    ], onError='continueRegularOutput'),
-    nodo('Armar registro', 'n8n-nodes-base.set', 3.4, [1780, 100], {
-        'assignments': {'assignments': [
-            {'id': uid('q1'), 'name': 'flujo', 'value': 'precios', 'type': 'string'},
-            {'id': uid('q2'), 'name': 'fuente', 'value': 'Yahoo Finance (CC=F) + Superintendencia Financiera (TRM)', 'type': 'string'},
-            {'id': uid('q3'), 'name': 'inicio', 'value': "={{ $('Marcar inicio').first().json.inicio }}", 'type': 'string'},
-            {'id': uid('q4'), 'name': 'fin', 'value': '={{ $now.toISO() }}', 'type': 'string'},
-            {'id': uid('q5'), 'name': 'estado',
-             'value': "={{ $('Armar valores').first().json.sin_datos ? 'error' : 'ok' }}", 'type': 'string'},
-            {'id': uid('q6'), 'name': 'registros_nuevos',
-             'value': "={{ $('Guardar valor').isExecuted ? $('Guardar valor').all().filter(i => i.json.id).length : 0 }}",
-             'type': 'number'},
-            {'id': uid('q7'), 'name': 'mensaje_error',
-             'value': "={{ $('Armar valores').first().json.errores || '' }}", 'type': 'string'},
-            {'id': uid('q8'), 'name': 'empresa_id', 'value': "={{ $('Empresa activa').first().json.id }}", 'type': 'string'},
-        ]},
-        'options': {},
-    }, executeOnce=True),
+    supabase_crear('Guardar bolsa', [1340, 100], 'valores_indicador', [
+        ('indicador_codigo', "={{ $('Armar valores').first().json.bolsa?.indicador_codigo ?? null }}"),
+        ('fecha', "={{ $('Armar valores').first().json.bolsa?.fecha ?? null }}"),
+        ('valor', "={{ $('Armar valores').first().json.bolsa?.valor ?? null }}"),
+        ('fuente', "={{ $('Armar valores').first().json.bolsa?.fuente ?? null }}"),
+    ], onError='continueRegularOutput', executeOnce=True),
+    supabase_crear('Guardar TRM', [1560, 100], 'valores_indicador', [
+        ('indicador_codigo', "={{ $('Armar valores').first().json.trm?.indicador_codigo ?? null }}"),
+        ('fecha', "={{ $('Armar valores').first().json.trm?.fecha ?? null }}"),
+        ('valor', "={{ $('Armar valores').first().json.trm?.valor ?? null }}"),
+        ('fuente', "={{ $('Armar valores').first().json.trm?.fuente ?? null }}"),
+    ], onError='continueRegularOutput', executeOnce=True),
+    codigo('Armar registro', [1780, 100], JS_REGISTRO_PRECIOS, executeOnce=True),
     supabase_crear('Registrar ejecución', [2000, 100], 'ejecuciones', [
         (c, '={{ $json.%s }}' % c) for c in
         ['flujo', 'fuente', 'inicio', 'fin', 'estado', 'registros_nuevos', 'mensaje_error', 'empresa_id']
@@ -454,10 +466,9 @@ precios = flujo('Precio diario del cacao y TRM', precios_nodos, conectar(
     ('Marcar inicio', 'Bolsa Nueva York (Yahoo)'),
     ('Bolsa Nueva York (Yahoo)', 'TRM oficial'),
     ('TRM oficial', 'Armar valores'),
-    ('Armar valores', '¿Hay datos?'),
-    ('¿Hay datos?', 'Guardar valor', 0),
-    ('¿Hay datos?', 'Armar registro', 1),
-    ('Guardar valor', 'Armar registro'),
+    ('Armar valores', 'Guardar bolsa'),
+    ('Guardar bolsa', 'Guardar TRM'),
+    ('Guardar TRM', 'Armar registro'),
     ('Armar registro', 'Registrar ejecución'),
 ))
 

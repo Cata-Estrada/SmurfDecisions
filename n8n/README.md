@@ -44,7 +44,7 @@ Para cada uno de los 3 archivos de esta carpeta:
 1. **Overview → Create workflow** → menú `⋯` (arriba a la derecha) → **Import from File…**
 2. Elige el archivo `.json`.
 3. Los nodos que necesitan credencial aparecen con un aviso. Ábrelos uno por uno y elige la credencial:
-   - Nodos de Supabase (`Empresa activa`, `Consultas`, `Guardar alerta`, `Registrar ejecución`, etc.) → **Supabase**
+   - Nodos de Supabase (`Empresa activa`, `Consultas`, `Guardar alerta`, `Guardar bolsa`, `Guardar TRM`, `Registrar ejecución`, etc.) → **Supabase**
    - `Clasificar con Gemini` → **Google Gemini**
    - `Botón de la app` → **Header Auth**
 4. **Save**.
@@ -57,8 +57,10 @@ En **Noticias del cacao** y en **Precio diario del cacao y TRM**: menú `⋯` �
 
 ## Paso 5 · Probar y activar
 
-1. Abre **Precio diario del cacao y TRM** y pulsa **Execute workflow**. En Supabase, la tabla `valores_indicador` debe tener una fila de `CACAO_NY` y otra de `TRM`, y `ejecuciones` una fila `precios` con estado `ok`.
-2. Abre **Noticias del cacao** y pulsa **Execute workflow**. Tarda unos minutos, porque hace una pausa de 5 segundos entre noticias para no pasar el límite gratuito de Gemini. Al terminar, `alertas` tiene las noticias nuevas y `ejecuciones` una fila `noticias`.
+> Cada flujo tiene dos disparadores. Si pulsas el botón grande **Execute workflow**, n8n puede elegir **Botón de la app** y quedarse en *"Waiting for you to call the Test URL"*. En ese caso pulsa **Stop** y ejecútalo desde el disparador de horario: pasa el mouse sobre él (**Lunes a viernes 6 p. m.** o **Cada 6 horas**) y pulsa su ▶.
+
+1. Abre **Precio diario del cacao y TRM** y ejecútalo desde **Lunes a viernes 6 p. m.** En Supabase, la tabla `valores_indicador` debe tener una fila de `CACAO_NY` y otra de `TRM`, y `ejecuciones` una fila `precios` con estado `ok`.
+2. Abre **Noticias del cacao** y ejecútalo desde **Cada 6 horas**. Tarda unos minutos, porque hace una pausa de 5 segundos entre noticias para no pasar el límite gratuito de Gemini. Al terminar, `alertas` tiene las noticias nuevas y `ejecuciones` una fila `noticias`.
 3. Si todo salió bien, activa ambos con el interruptor **Active** (arriba). El de errores no necesita activarse.
 
 ## Paso 6 · Conectar el botón "Ejecutar flujos" de la app
