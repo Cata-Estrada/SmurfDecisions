@@ -489,7 +489,7 @@
             {
               "id": "850c406a-f3ca-5067-b662-e0ce43649757",
               "name": "registros_nuevos",
-              "value": "={{ $('Guardar alerta').isExecuted ? $('Guardar alerta').all().filter(i => i.json.id).length : 0 }}",
+              "value": "={{ $input.all().filter(i => i.json.id).length }}",
               "type": "number"
             },
             {

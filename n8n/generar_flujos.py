@@ -318,7 +318,8 @@ noticias_nodos = [
             {'id': uid('r4'), 'name': 'fin', 'value': '={{ $now.toISO() }}', 'type': 'string'},
             {'id': uid('r5'), 'name': 'estado', 'value': 'ok', 'type': 'string'},
             {'id': uid('r6'), 'name': 'registros_nuevos',
-             'value': "={{ $('Guardar alerta').isExecuted ? $('Guardar alerta').all().filter(i => i.json.id).length : 0 }}",
+             # La salida "done" del ciclo trae todas las vueltas; las guardadas tienen id.
+             'value': '={{ $input.all().filter(i => i.json.id).length }}',
              'type': 'number'},
             {'id': uid('r7'), 'name': 'empresa_id', 'value': "={{ $('Empresa activa').first().json.id }}", 'type': 'string'},
         ]},
