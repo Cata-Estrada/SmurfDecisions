@@ -458,7 +458,8 @@ export default function NoticiasAnalizadas() {
                             probabilidad: e.target.value ? parseInt(e.target.value, 10) : null
                           })
                         }
-                        className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-500"
+                      disabled={!permisos.puedeEditarRiesgos}
                       >
                         <option value="">Selecciona de 1 a 5</option>
                         {[1, 2, 3, 4, 5].map((valor) => (
@@ -474,7 +475,8 @@ export default function NoticiasAnalizadas() {
                         onChange={(e) =>
                           setFormEdicion({ ...formEdicion, probabilidad: parseInt(e.target.value, 10) })
                         }
-                        className="w-full accent-blue-600"
+                        className="w-full accent-blue-600 disabled:opacity-50"
+                        disabled={!permisos.puedeEditarRiesgos}
                       />
                     )}
                   </div>
@@ -497,7 +499,8 @@ export default function NoticiasAnalizadas() {
                             impacto: e.target.value ? parseInt(e.target.value, 10) : null
                           })
                         }
-                        className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-500"
+                      disabled={!permisos.puedeEditarRiesgos}
                       >
                         <option value="">Selecciona de 1 a 5</option>
                         {[1, 2, 3, 4, 5].map((valor) => (
@@ -513,7 +516,8 @@ export default function NoticiasAnalizadas() {
                         onChange={(e) =>
                           setFormEdicion({ ...formEdicion, impacto: parseInt(e.target.value, 10) })
                         }
-                        className="w-full accent-blue-600"
+                        className="w-full accent-blue-600 disabled:opacity-50"
+                        disabled={!permisos.puedeEditarRiesgos}
                       />
                     )}
                   </div>
@@ -535,7 +539,8 @@ export default function NoticiasAnalizadas() {
                     <select
                       value={formEdicion.factor || ''}
                       onChange={(e) => setFormEdicion({ ...formEdicion, factor: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-500"
+                      disabled={!permisos.puedeEditarRiesgos}
                     >
                       <option value="" disabled>Selecciona un driver</option>
                       {DRIVERS.map((d) => (
@@ -549,7 +554,8 @@ export default function NoticiasAnalizadas() {
                     <select
                       value={formEdicion.area || ''}
                       onChange={(e) => setFormEdicion({ ...formEdicion, area: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-500"
+                      disabled={!permisos.puedeEditarRiesgos}
                     >
                       <option value="" disabled>Selecciona un área</option>
                       {AREAS.map((a) => (
@@ -563,7 +569,8 @@ export default function NoticiasAnalizadas() {
                     <select
                       value={formEdicion.tipo_evento || ''}
                       onChange={(e) => setFormEdicion({ ...formEdicion, tipo_evento: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-500"
+                      disabled={!permisos.puedeEditarRiesgos}
                     >
                       <option value="" disabled>Selecciona un tipo</option>
                       {TIPOS_EVENTO.map((t) => (
@@ -577,7 +584,8 @@ export default function NoticiasAnalizadas() {
                     <select
                       value={formEdicion.efecto_precio || ''}
                       onChange={(e) => setFormEdicion({ ...formEdicion, efecto_precio: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-500"
+                      disabled={!permisos.puedeEditarRiesgos}
                     >
                       <option value="">Sin definir</option>
                       {Object.entries(EFECTOS_PRECIO).map(([codigo, efecto]) => (

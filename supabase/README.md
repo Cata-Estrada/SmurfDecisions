@@ -64,7 +64,7 @@ npx supabase functions deploy ejecutar-flujo
 
 `TU_PROJECT_REF` es lo que aparece en la URL del proyecto: `https://TU_PROJECT_REF.supabase.co`.
 
-No necesita claves ni variables de entorno. Solo responde a usuarios con sesión iniciada.
+`precio-cacao` no necesita claves ni variables de entorno. Las dos funciones solo responden a usuarios con sesión iniciada.
 
 ## Modelo de datos
 
