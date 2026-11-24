@@ -45,6 +45,10 @@ function SenalesNoticias({ alertas }) {
     a.estado === 'validada' &&
     new Date(a.fecha_publicacion || a.creada_en).getTime() >= desde
   );
+  const porValidar = alertas.filter((a) =>
+    ['pendiente', 'sin_clasificar'].includes(a.estado) &&
+    new Date(a.fecha_publicacion || a.creada_en).getTime() >= desde
+  ).length;
   const sube = recientes.filter((a) => a.efecto_precio === 'sube').length;
   const baja = recientes.filter((a) => a.efecto_precio === 'baja').length;
   const texto = recientes.length === 0
@@ -55,6 +59,11 @@ function SenalesNoticias({ alertas }) {
       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Noticias ({DIAS_SENALES} días)</p>
       <p className="mt-1 text-lg font-bold text-slate-900">{texto}</p>
       <p className="mt-1 text-xs text-slate-500">{sube} al alza · {baja} a la baja · {recientes.length - sube - baja} neutrales</p>
+      {porValidar > 0 && (
+        <p className="mt-1 text-xs font-semibold text-amber-800">
+          {porValidar} noticia(s) por validar en Noticias del cacao: solo cuentan las validadas.
+        </p>
+      )}
     </div>
   );
 }

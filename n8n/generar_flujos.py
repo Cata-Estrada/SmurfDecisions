@@ -223,8 +223,11 @@ if (j.error && /too many|429|quota|rate|resource_exhausted|overloaded|unavailabl
   return { json: { ...base, relevante: false, motivo: 'limite_gemini' } };
 }
 
-// 2) Extraer el JSON aunque venga con texto alrededor.
-let txt = j.content?.parts?.[0]?.text ?? j.output ?? j.text ?? '';
+// 2) Extraer el JSON aunque venga con texto alrededor. Los modelos nuevos pueden
+//    devolver varias partes (por ejemplo, una de "razonamiento"): se unen las de texto.
+const partes = j.content?.parts ?? j.candidates?.[0]?.content?.parts ?? [];
+let txt = partes.filter(pt => pt && typeof pt.text === 'string' && !pt.thought).map(pt => pt.text).join('')
+  || j.output || j.text || j.message?.content || '';
 txt = String(txt).replace(/```json|```/g, '').trim();
 const m = txt.match(/\{[\s\S]*\}/);
 let r = null;
@@ -243,7 +246,8 @@ const driver = r && DRIVERS.includes(r.driver) ? r.driver : null;
 if (!r || j.error || p === null || i === null || driver === null) {
   return { json: { ...base, relevante: true, estado: 'sin_clasificar',
     factor: driver, efecto_precio: r && EFECTOS.includes(r.efecto_precio) ? r.efecto_precio : null,
-    explicacion: 'Gemini no devolvió una clasificación completa; revisar manualmente.' } };
+    explicacion: ('Gemini no devolvió una clasificación completa; revisar manualmente. Detalle: '
+      + (j.error ? JSON.stringify(j.error) : (txt || JSON.stringify(j))).replace(/\s+/g, ' ')).slice(0, 600) } };
 }
 
 const tipo = TIPOS.includes(r.tipo_evento) ? r.tipo_evento : 'otro';
