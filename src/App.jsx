@@ -18,7 +18,7 @@ import Registro from './pages/Registro';
 import Layout from './components/Layout';
 import PanelEjecutivo from './pages/PanelEjecutivo';
 import NoticiasAnalizadas from './pages/NoticiasAnalizadas';
-import AnalisisPestel from './pages/AnalisisPestel';
+import MatrizDrivers from './pages/MatrizDrivers';
 import Recomendador from './pages/Recomendador';
 import CompraCacao from './pages/CompraCacao';
 import CentroActualizaciones from './pages/CentroActualizaciones';
@@ -37,7 +37,8 @@ export default function App() {
           <Route path="/dashboard" element={<Layout />}>
             <Route index element={<PanelEjecutivo />} />
             <Route path="noticias" element={<NoticiasAnalizadas />} />
-            <Route path="pestel" element={<AnalisisPestel />} />
+            <Route path="drivers" element={<MatrizDrivers />} />
+            <Route path="pestel" element={<Navigate to="/dashboard/drivers" replace />} />
             <Route path="recomendador" element={<Recomendador />} />
             <Route path="simulador" element={<CompraCacao />} />
             <Route path="actualizaciones" element={<CentroActualizaciones />} />

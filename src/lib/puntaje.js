@@ -1,8 +1,7 @@
 // ==============================================================================
-// AgroDecisions · Reglas de puntuación de análisis de riesgos
-// FÓRMULA OFICIAL DE PUNTAJE Y CLASIFICACIÓN DE IMPACTO
-// Fuente de verdad: docs/Documento maestro de definición del aplicativo.md
-// y docs/Análisis PESTEL – Smurfit Westrock Colombia.md
+// Puntaje de las alertas de noticias: probabilidad × impacto (1 a 25).
+// Alto 15–25 · Medio 8–14 · Bajo 1–7. Prioritaria si el puntaje es 15 o más.
+// Ver docs/Definición del aplicativo – Coagropacífico.md
 // ==============================================================================
 
 /**

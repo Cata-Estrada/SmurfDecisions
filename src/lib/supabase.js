@@ -1,7 +1,6 @@
 // ==============================================================================
 // AgroDecisions · Cliente Supabase de Coagropacífico
 // CLIENTE DE CONEXIÓN A SUPABASE
-// Fuente de verdad: AGENTS.md y docs/Documento maestro de definición del aplicativo.md
 // ==============================================================================
 import { createClient } from '@supabase/supabase-js';
 

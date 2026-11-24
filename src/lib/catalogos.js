@@ -1,6 +1,6 @@
 // ==============================================================================
 // Catálogos de Coagropacífico (drivers, áreas, tipos de evento)
-// Fuente de verdad: docs/Documento maestro de definición del aplicativo.md
+// Ver docs/Definición del aplicativo – Coagropacífico.md
 // ==============================================================================
 
 export const AREAS = [

@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * Componente para identificar los hallazgos base del documento PESTEL
+ * Indica de dónde viene una alerta: cargada por n8n o registrada a mano
  */
 export default function OrigenBadge({ origen }) {
   if (origen === 'base') {

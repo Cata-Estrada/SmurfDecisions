@@ -47,9 +47,9 @@ Roles disponibles:
 2. En la raíz del proyecto, copia `.env.example` como `.env` y pega los dos valores.
 3. Reinicia `npm run dev`.
 
-## 5. Publicar la función del precio del cacao
+## 5. Publicar las funciones
 
-La función `precio-cacao` trae el futuro de cacao de Nueva York (Yahoo Finance, `CC=F`) con 5 años de historial y la TRM oficial de la Superintendencia Financiera.
+La función `precio-cacao` trae el futuro de cacao de Nueva York (Yahoo Finance, `CC=F`) con 5 años de historial, la TRM oficial de la Superintendencia Financiera y el precio de Londres publicado por la ICCO.
 
 Desde la raíz del proyecto:
 
@@ -57,7 +57,10 @@ Desde la raíz del proyecto:
 npx supabase login
 npx supabase link --project-ref TU_PROJECT_REF
 npx supabase functions deploy precio-cacao
+npx supabase functions deploy ejecutar-flujo
 ```
+
+`ejecutar-flujo` es la función del botón **Ejecutar flujos n8n**; necesita los secretos que se explican en [`../n8n/README.md`](../n8n/README.md) (paso 6).
 
 `TU_PROJECT_REF` es lo que aparece en la URL del proyecto: `https://TU_PROJECT_REF.supabase.co`.
 

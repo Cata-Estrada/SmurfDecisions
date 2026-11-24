@@ -46,7 +46,7 @@ function Presion({ sube, baja }) {
   );
 }
 
-export default function AnalisisPestel() {
+export default function MatrizDrivers() {
   const { empresaId } = useAuth();
   const [alertas, setAlertas] = useState([]);
   const [cargando, setCargando] = useState(true);
